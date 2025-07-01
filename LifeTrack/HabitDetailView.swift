@@ -117,15 +117,19 @@ struct CalendarView: View {
                 }
             }
             
-            ForEach(Array(weeks.enumerated()), id: \ .offset) { weekIndex, week in
+            ForEach(Array(weeks.enumerated()), id: \.offset) { weekIndex, week in
                 HStack {
-                    ForEach(week, id: \ .self) { day in
+                    ForEach(week, id: \.self) { day in
                         Text("\(Calendar.current.component(.day, from: day))")
                             .frame(maxWidth: .infinity)
                             .padding(8)
                             .background(
                                 Circle()
                                     .fill(isCompleted(date: day) ? Color.green.opacity(0.3) : Color.clear)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(isCompleted(date: day) ? Color.green : Color.clear, lineWidth: 2)
                             )
                     }
                 }

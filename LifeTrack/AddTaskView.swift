@@ -1,8 +1,10 @@
 import SwiftUI
+import SwiftData
 
 struct AddTaskView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) var dismiss
+    @Query(sort: \Task.priority, order: .reverse) private var tasks: [Task]
     @State private var title: String = ""
     @State private var dueDate: Date = Date()
     @State private var status: Status = .notStarted
@@ -43,7 +45,8 @@ struct AddTaskView: View {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return }
         
-        let newTask = Task(title: trimmedTitle, dueDate: dueDate, status: status, taskDescription: taskDescription.isEmpty ? nil : taskDescription)
+        let nextPriority = tasks.first?.priority ?? -1
+        let newTask = Task(title: trimmedTitle, dueDate: dueDate, status: status, priority: nextPriority + 1, taskDescription: taskDescription.isEmpty ? nil : taskDescription)
         modelContext.insert(newTask)
         try? modelContext.save()
     }

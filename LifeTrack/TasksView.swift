@@ -9,6 +9,8 @@ struct TasksView: View {
     @State private var startDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var endDate: Date = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!.addingTimeInterval(-1)
     @State private var statusFilter: StatusFilter = .all
+    @State private var showingDeleteAlert = false
+    @State private var taskToDelete: Task?
 
     enum StatusFilter: String, CaseIterable, Identifiable {
         case all = "All"
@@ -18,7 +20,7 @@ struct TasksView: View {
         var id: String { self.rawValue }
     }
 
-    @Query(sort: \Task.dueDate, order: .forward) private var tasks: [Task]
+    @Query(sort: \Task.priority, order: .forward) private var tasks: [Task]
 
     var filteredTasks: [Task] {
         tasks.filter { task in
@@ -45,41 +47,18 @@ struct TasksView: View {
                     } else {
                         VStack(spacing: 8) {
                             ForEach(filteredTasks) { task in
-                                NavigationLink {
-                                    EditTaskView(task: task)
-                                } label: {
-                                    VStack(alignment: .leading) {
-                                        HStack {
-                                            Text(task.title)
-                                                .fontWeight(.semibold)
-                                            Spacer()
-                                            Text(task.status.rawValue)
-                                                .font(.caption)
-                                                .foregroundColor(color(for: task.status))
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 2)
-                                                .background(color(for: task.status).opacity(0.15))
-                                                .cornerRadius(6)
-                                        }
-                                        Text("Due: \(task.dueDate, style: .date)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
+                                TaskRowView(task: task) {
+                                    selectedTask = task
+                                    showingEditSheet = true
+                                } onDelete: {
+                                    taskToDelete = task
+                                    showingDeleteAlert = true
+                                } onStatusChange: { status in
+                                    updateStatus(for: task, to: status)
                                 }
-                                .buttonStyle(PlainButtonStyle())
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(8)
-                                .contextMenu {
-                                    ForEach(Status.allCases, id: \.self) { status in
-                                        Button(status.rawValue) {
-                                            updateStatus(for: task, to: status)
-                                        }
-                                    }
-                                    Button("Delete", role: .destructive) {
-                                        deleteTask(task)
-                                    }
-                                }
+                            }
+                            .onMove { from, to in
+                                moveTasks(from: from, to: to)
                             }
                         }
                     }
@@ -96,6 +75,21 @@ struct TasksView: View {
             }
             .sheet(isPresented: $showingAddSheet) {
                 AddTaskView()
+            }
+            .sheet(isPresented: $showingEditSheet) {
+                if let task = selectedTask {
+                    EditTaskView(task: task)
+                }
+            }
+            .alert("Delete Task", isPresented: $showingDeleteAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    if let task = taskToDelete {
+                        deleteTask(task)
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to delete this task? This action cannot be undone.")
             }
         }
     }
@@ -118,5 +112,30 @@ struct TasksView: View {
             modelContext.delete(task)
             try? modelContext.save()
         }
+    }
+    
+    private func moveTasks(from source: IndexSet, to destination: Int) {
+        let filteredTasksArray = Array(filteredTasks)
+        var updatedTasks = filteredTasksArray
+        
+        // Remove tasks from source indices
+        for index in source.sorted(by: >) {
+            updatedTasks.remove(at: index)
+        }
+        
+        // Insert tasks at destination
+        for (index, task) in source.enumerated() {
+            let insertIndex = destination + index
+            if insertIndex <= updatedTasks.count {
+                updatedTasks.insert(filteredTasksArray[task], at: insertIndex)
+            }
+        }
+        
+        // Update priorities based on new order
+        for (index, task) in updatedTasks.enumerated() {
+            task.priority = index
+        }
+        
+        try? modelContext.save()
     }
 } 

@@ -9,12 +9,12 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @State private var selectedTab: Int = 0
+    @StateObject private var tabManager = TabManager()
     @State private var showingAddSheet = false
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            DashboardView()
+        TabView(selection: $tabManager.selectedTab) {
+            DashboardView(tabManager: tabManager)
                 .tabItem { Label("Dashboard", systemImage: "house.fill") }
                 .tag(0)
 
@@ -27,7 +27,7 @@ struct ContentView: View {
                 .tag(2)
 
             BudgetView()
-                .tabItem { Label("Budget", systemImage: "dollarsign.circle") }
+                .tabItem { Label("Budget", systemImage: "indianrupeesign.circle") }
                 .tag(3)
         }
     }

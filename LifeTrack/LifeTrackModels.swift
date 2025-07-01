@@ -49,14 +49,16 @@ final class Task {
     var title: String
     var dueDate: Date
     var status: Status // Now uses the Status enum
+    var priority: Int // For manual ordering
     var tags: [String]?
     var taskDescription: String?
 
-    init(id: UUID = UUID(), title: String, dueDate: Date = Date(), status: Status = .notStarted, tags: [String]? = nil, taskDescription: String? = nil) {
+    init(id: UUID = UUID(), title: String, dueDate: Date = Date(), status: Status = .notStarted, priority: Int = 0, tags: [String]? = nil, taskDescription: String? = nil) {
         self.id = id
         self.title = title
         self.dueDate = dueDate
         self.status = status
+        self.priority = priority
         self.tags = tags
         self.taskDescription = taskDescription
     }

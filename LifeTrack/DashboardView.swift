@@ -1,35 +1,6 @@
 import SwiftUI
 import SwiftData
 
-// --- Quote Provider ---
-class QuoteProvider {
-    private let quotes: [Quote] = [
-        Quote(text: "The secret of getting ahead is getting started.", author: "Mark Twain"),
-        Quote(text: "The best way to predict the future is to create it.", author: "Peter Drucker"),
-        Quote(text: "Well done is better than well said.", author: "Benjamin Franklin"),
-        Quote(text: "A journey of a thousand miles begins with a single step.", author: "Lao Tzu"),
-        Quote(text: "You reap what you sow.", author: "Indian Proverb"),
-        Quote(text: "Little by little, one travels far.", author: "J.R.R. Tolkien"),
-        Quote(text: "A single tree does not make a forest.", author: "Indian Proverb"),
-        Quote(text: "Wisdom is wealth.", author: "Swahili Proverb"),
-        Quote(text: "No one can whistle a symphony. It takes a whole orchestra to play it.", author: "H.E. Luccock"),
-        Quote(text: "A book is like a garden carried in the pocket.", author: "Chinese Proverb"),
-        Quote(text: "If you want to go fast, go alone. If you want to go far, go together.", author: "African Proverb"),
-        Quote(text: "A diamond with a flaw is worth more than a pebble without imperfections.", author: "Indian Proverb"),
-        Quote(text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb"),
-        Quote(text: "A man is not honest simply because he never had a chance to steal.", author: "Indian Proverb"),
-        Quote(text: "Courage is not the absence of fear, but the triumph over it.", author: "Nelson Mandela")
-    ]
-    func getRandomQuote() -> Quote {
-        quotes.randomElement() ?? quotes.first!
-    }
-}
-
-struct Quote {
-    let text: String
-    let author: String
-}
-
 struct QuoteView: View {
     let quote: Quote
     var body: some View {
@@ -45,13 +16,13 @@ struct QuoteView: View {
 
 // --- Main Dashboard View (Upgraded and Corrected) ---
 struct DashboardView: View {
+    @ObservedObject var tabManager: TabManager
     @Query(sort: \Habit.createdAt, order: .reverse) private var habits: [Habit]
     @Query(sort: \HabitCompletion.completionDate, order: .reverse) private var completions: [HabitCompletion]
-    @Query(sort: \Task.dueDate, order: .forward) private var tasks: [Task]
+    @Query(sort: \Task.priority, order: .forward) private var tasks: [Task]
     @Query(sort: \BudgetCategory.name) private var categories: [BudgetCategory]
     @Query(sort: \Expense.date, order: .reverse) private var expenses: [Expense]
-    @State private var quote: Quote = QuoteProvider().getRandomQuote()
-    private let quoteProvider = QuoteProvider()
+    @State private var quote: Quote = QuoteProvider.getRandomQuote()
 
     // Helper: Get today's date range
     private var todayRange: ClosedRange<Date> {
@@ -116,9 +87,20 @@ struct DashboardView: View {
                         .padding(.top)
 
                     HStack(spacing: 24) {
-                        DoughnutChartView(value: habitsProgress, title: "Habits", color: .blue)
-                        DoughnutChartView(value: tasksProgress, title: "Tasks", color: .green)
-                        DoughnutChartView(value: budgetProgress, title: "Budget", color: .red)
+                        Button(action: { tabManager.switchToTab(1) }) {
+                            DoughnutChartView(value: habitsProgress, title: "Habits", color: .blue)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: { tabManager.switchToTab(2) }) {
+                            DoughnutChartView(value: tasksProgress, title: "Tasks", color: .green)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: { tabManager.switchToTab(3) }) {
+                            DoughnutChartView(value: budgetProgress, title: "Budget", color: .red)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                     .frame(maxWidth: .infinity)
 
@@ -128,7 +110,7 @@ struct DashboardView: View {
             }
             .navigationTitle("Dashboard")
             .onAppear {
-                quote = quoteProvider.getRandomQuote()
+                quote = QuoteProvider.getRandomQuote()
             }
         }
     }

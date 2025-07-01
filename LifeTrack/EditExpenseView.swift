@@ -1,13 +1,14 @@
 import SwiftUI
 import SwiftData
 
-struct AddExpenseView: View {
+struct EditExpenseView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) var dismiss
+    @Bindable var expense: Expense
     @Query(sort: \BudgetCategory.name) private var budgetCategories: [BudgetCategory]
-
+    
     @State private var note: String = ""
-    @State private var amount: Double?
+    @State private var amount: Double = 0
     @State private var date: Date = Date()
     @State private var category: String = "Food"
     @State private var customCategory: String = ""
@@ -19,12 +20,12 @@ struct AddExpenseView: View {
         let customCategories = budgetCategories.map { $0.name }
         return defaultCategories + customCategories + ["Other"]
     }
-
+    
     var body: some View {
         NavigationStack {
             Form {
                 Section("Details") {
-                    TextField("Note (e.g., Lunch)", text: $note)
+                    TextField("Note", text: $note)
                     TextField("Amount", value: $amount, format: .currency(code: "INR"))
                         .keyboardType(.decimalPad)
                 }
@@ -46,35 +47,51 @@ struct AddExpenseView: View {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 }
             }
-            .navigationTitle("New Expense")
+            .navigationTitle("Edit Expense")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        addExpense()
+                        saveExpense()
                         dismiss()
                     }
-                    .disabled(note.isEmpty || amount == nil || (category == "Other" && customCategory.isEmpty))
+                    .disabled(note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || amount <= 0 || (category == "Other" && customCategory.isEmpty))
+                }
+            }
+            .onAppear {
+                note = expense.note
+                amount = expense.amount
+                date = expense.date
+                
+                // Set the category properly
+                if allCategories.contains(expense.category) {
+                    category = expense.category
+                } else {
+                    // If it's a custom category not in the list, set to "Other" and populate custom field
+                    category = "Other"
+                    customCategory = expense.category
+                    showingCustomCategoryField = true
                 }
             }
         }
     }
-
-    private func addExpense() {
-        guard let finalAmount = amount, finalAmount > 0 else { return }
+    
+    private func saveExpense() {
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedNote.isEmpty, amount > 0 else { return }
         
         let finalCategory = category == "Other" ? customCategory : category
         
-        withAnimation {
-            let newExpense = Expense(amount: finalAmount, date: date, category: finalCategory, paymentMode: "Card", note: note)
-            modelContext.insert(newExpense)
-            try? modelContext.save()
-        }
+        expense.note = trimmedNote
+        expense.amount = amount
+        expense.date = date
+        expense.category = finalCategory
+        try? modelContext.save()
     }
 }
 
 #Preview {
-    AddExpenseView()
+    EditExpenseView(expense: Expense(amount: 100, category: "Food", paymentMode: "Card", note: "Lunch"))
 } 
