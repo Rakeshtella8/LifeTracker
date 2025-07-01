@@ -1,5 +1,12 @@
 import SwiftUI
 import SwiftData
+import Charts
+
+struct ChartData: Identifiable {
+    let id = UUID()
+    let category: String
+    let amount: Double
+}
 
 struct BudgetView: View {
     @Environment(\.modelContext) private var modelContext
@@ -7,13 +14,12 @@ struct BudgetView: View {
     @Query(sort: \Expense.date, order: .reverse) private var expenses: [Expense]
     @State private var showingAddSheet = false
     @State private var showingBudgetSetup = false
+    @State private var startDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var endDate: Date = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!.addingTimeInterval(-1)
 
-    // Helper: Calculate amount spent in a category this month
-    private func spentThisMonth(for category: BudgetCategory) -> Double {
-        let calendar = Calendar.current
-        let now = Date()
-        let monthInterval = calendar.dateInterval(of: .month, for: now)!
-        return expenses.filter { $0.category == category.name && monthInterval.contains($0.date) }
+    // Helper: Calculate amount spent in a category for the selected range
+    private func spent(for category: BudgetCategory) -> Double {
+        expenses.filter { $0.category == category.name && $0.date >= startDate && $0.date <= endDate }
             .reduce(0) { $0 + $1.amount }
     }
 
@@ -21,64 +27,120 @@ struct BudgetView: View {
     private var insights: [String] {
         var tips: [String] = []
         for category in categories {
-            let spent = spentThisMonth(for: category)
-            let percent = category.budgetAmount == 0 ? 0 : Int((spent / category.budgetAmount) * 100)
+            let spentAmount = spent(for: category)
+            let percent = category.budgetAmount == 0 ? 0 : Int((spentAmount / category.budgetAmount) * 100)
             if percent >= 80 {
-                tips.append("You are \(percent)% of the way to your '\(category.name)' budget for this month.")
+                tips.append("You are \(percent)% of the way to your '\(category.name)' budget for this period.")
             }
         }
-        if let highest = categories.max(by: { spentThisMonth(for: $0) < spentThisMonth(for: $1) }), spentThisMonth(for: highest) > 0 {
+        if let highest = categories.max(by: { spent(for: $0) < spent(for: $1) }), spent(for: highest) > 0 {
             tips.append("Your highest spending category is '\(highest.name)'.")
         }
         return tips.isEmpty ? ["You're managing your budget well!"] : tips
     }
 
+    // Pie chart data
+    private var pieData: [ChartData] {
+        let grouped = Dictionary(grouping: expenses.filter { $0.date >= startDate && $0.date <= endDate }, by: { $0.category })
+        return grouped.map { (key, value) in ChartData(category: key, amount: value.reduce(0) { $0 + $1.amount }) }
+            .filter { $0.amount > 0 }
+    }
+
+    // Recent transactions
+    private var recentTransactions: [Expense] {
+        expenses.filter { $0.date >= startDate && $0.date <= endDate }
+            .prefix(10)
+            .map { $0 }
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("Budgets").font(.title2).bold()
-                    Spacer()
-                    Button("Setup Budgets") { showingBudgetSetup = true }
-                        .font(.subheadline)
-                }
-                if categories.isEmpty {
-                    Text("No budget categories set up yet.")
-                        .foregroundColor(.secondary)
-                        .padding(.vertical)
-                } else {
-                    List {
-                        ForEach(categories) { category in
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack {
-                                    Text(category.name).fontWeight(.semibold)
-                                    Spacer()
-                                    Text("₹\(spentThisMonth(for: category), specifier: "%.2f") / ₹\(category.budgetAmount, specifier: "%.2f")")
-                                        .font(.caption)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    DateFilterView(startDate: $startDate, endDate: $endDate)
+                    HStack {
+                        Text("Budgets").font(.title2).bold()
+                        Spacer()
+                        Button("Setup Budgets") { showingBudgetSetup = true }
+                            .font(.subheadline)
+                    }
+                    if categories.isEmpty {
+                        Text("No budget categories set up yet.")
+                            .foregroundColor(.secondary)
+                            .padding(.vertical)
+                    } else {
+                        List {
+                            ForEach(categories) { category in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text(category.name).fontWeight(.semibold)
+                                        Spacer()
+                                        Text("₹\(spent(for: category), specifier: "%.2f") / ₹\(category.budgetAmount, specifier: "%.2f")")
+                                            .font(.caption)
+                                    }
+                                    ProgressView(value: min(spent(for: category) / max(category.budgetAmount, 1), 1.0))
+                                        .accentColor(.blue)
                                 }
-                                ProgressView(value: min(spentThisMonth(for: category) / max(category.budgetAmount, 1), 1.0))
-                                    .accentColor(.blue)
                             }
                         }
+                        .listStyle(.plain)
                     }
-                    .listStyle(.plain)
+                    Divider()
+                    // Pie Chart
+                    if !pieData.isEmpty {
+                        Chart {
+                            ForEach(pieData) { item in
+                                SectorMark(
+                                    angle: .value("Amount", item.amount),
+                                    innerRadius: .ratio(0.5),
+                                    angularInset: 2
+                                )
+                                .foregroundStyle(by: .value("Category", item.category))
+                            }
+                        }
+                        .frame(height: 180)
+                        .padding(.vertical, 8)
+                    }
+                    Text("Financial Insights").font(.headline)
+                    ForEach(insights, id: \.self) { tip in
+                        Text(tip).font(.subheadline).foregroundColor(.secondary)
+                    }
+                    Divider()
+                    Text("Recent Transactions").font(.headline)
+                    if recentTransactions.isEmpty {
+                        Text("No transactions in this period.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        List(recentTransactions) { expense in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(expense.note).fontWeight(.semibold)
+                                    Text(expense.category).font(.caption).foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Text(expense.amount, format: .currency(code: "INR")).foregroundColor(.red)
+                            }
+                        }
+                        .listStyle(.plain)
+                    }
+                    Spacer()
                 }
-                Divider()
-                Text("Financial Insights").font(.headline)
-                ForEach(insights, id: \.self) { tip in
-                    Text(tip).font(.subheadline).foregroundColor(.secondary)
-                }
-                Spacer()
+                .padding()
             }
-            .padding()
             .navigationTitle("Budget")
+            .sheet(isPresented: $showingBudgetSetup) {
+                BudgetSetupView()
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingAddSheet = true }) { Image(systemName: "plus") }
+                    Button(action: { showingAddSheet = true }) {
+                        Image(systemName: "plus")
+                    }
                 }
             }
-            .sheet(isPresented: $showingAddSheet) { AddExpenseView() }
-            .sheet(isPresented: $showingBudgetSetup) { BudgetSetupView() }
+            .sheet(isPresented: $showingAddSheet) {
+                AddExpenseView()
+            }
         }
     }
 }

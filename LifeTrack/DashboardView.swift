@@ -1,30 +1,42 @@
 import SwiftUI
 import SwiftData
 
-// --- Quote View ---
+// --- Quote Provider ---
+class QuoteProvider {
+    private let quotes: [Quote] = [
+        Quote(text: "The secret of getting ahead is getting started.", author: "Mark Twain"),
+        Quote(text: "The best way to predict the future is to create it.", author: "Peter Drucker"),
+        Quote(text: "Well done is better than well said.", author: "Benjamin Franklin"),
+        Quote(text: "A journey of a thousand miles begins with a single step.", author: "Lao Tzu"),
+        Quote(text: "You reap what you sow.", author: "Indian Proverb"),
+        Quote(text: "Little by little, one travels far.", author: "J.R.R. Tolkien"),
+        Quote(text: "A single tree does not make a forest.", author: "Indian Proverb"),
+        Quote(text: "Wisdom is wealth.", author: "Swahili Proverb"),
+        Quote(text: "No one can whistle a symphony. It takes a whole orchestra to play it.", author: "H.E. Luccock"),
+        Quote(text: "A book is like a garden carried in the pocket.", author: "Chinese Proverb"),
+        Quote(text: "If you want to go fast, go alone. If you want to go far, go together.", author: "African Proverb"),
+        Quote(text: "A diamond with a flaw is worth more than a pebble without imperfections.", author: "Indian Proverb"),
+        Quote(text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb"),
+        Quote(text: "A man is not honest simply because he never had a chance to steal.", author: "Indian Proverb"),
+        Quote(text: "Courage is not the absence of fear, but the triumph over it.", author: "Nelson Mandela")
+    ]
+    func getRandomQuote() -> Quote {
+        quotes.randomElement() ?? quotes.first!
+    }
+}
+
 struct Quote {
     let text: String
     let author: String
 }
 
 struct QuoteView: View {
-    private let quotes: [Quote] = [
-        Quote(text: "The secret of getting ahead is getting started.", author: "Mark Twain"),
-        Quote(text: "The best way to predict the future is to create it.", author: "Peter Drucker"),
-        Quote(text: "Well done is better than well said.", author: "Benjamin Franklin")
-    ]
-
-    private func getDailyQuote() -> Quote {
-        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
-        let quoteIndex = (dayOfYear - 1) % quotes.count
-        return quotes[quoteIndex]
-    }
-
+    let quote: Quote
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\"\(getDailyQuote().text)\"")
+            Text("\"\(quote.text)\"")
                 .font(.title2).fontWeight(.medium).italic()
-            Text("- \(getDailyQuote().author)")
+            Text("- \(quote.author)")
                 .font(.subheadline).foregroundColor(.gray).frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding().background(Color(.systemGray6)).cornerRadius(12)
@@ -38,6 +50,8 @@ struct DashboardView: View {
     @Query(sort: \Task.dueDate, order: .forward) private var tasks: [Task]
     @Query(sort: \BudgetCategory.name) private var categories: [BudgetCategory]
     @Query(sort: \Expense.date, order: .reverse) private var expenses: [Expense]
+    @State private var quote: Quote = QuoteProvider().getRandomQuote()
+    private let quoteProvider = QuoteProvider()
 
     // Helper: Get today's date range
     private var todayRange: ClosedRange<Date> {
@@ -95,7 +109,7 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    QuoteView()
+                    QuoteView(quote: quote)
 
                     Text("Today's Progress")
                         .font(.headline)
@@ -114,6 +128,9 @@ struct DashboardView: View {
                 .padding()
             }
             .navigationTitle("Dashboard")
+            .onAppear {
+                quote = quoteProvider.getRandomQuote()
+            }
         }
     }
 } 

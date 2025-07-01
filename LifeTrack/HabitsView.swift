@@ -4,76 +4,26 @@ import SwiftData
 struct HabitsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Habit.createdAt, order: .reverse) private var habits: [Habit]
-    @Query(sort: \HabitCompletion.completionDate, order: .forward) private var completions: [HabitCompletion]
     @State private var showingAddSheet = false
-    @State private var selectedHabit: Habit?
-    @State private var selectedDate: Date = Date()
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                if habits.isEmpty {
-                    ContentUnavailableView("No Habits Yet", systemImage: "repeat", description: Text("Tap the + button to add your first habit."))
-                } else {
-                    // Habit Picker
-                    Picker("Habit", selection: $selectedHabit) {
+            ScrollView {
+                VStack(spacing: 12) {
+                    if habits.isEmpty {
+                        ContentUnavailableView("No Habits Yet", systemImage: "repeat", description: Text("Tap the + button to add your first habit."))
+                            .padding(.top, 50)
+                    } else {
                         ForEach(habits) { habit in
-                            Text(habit.name).tag(Optional(habit))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .onAppear { if selectedHabit == nil { selectedHabit = habits.first } }
-
-                    if let habit = selectedHabit {
-                        // Calendar Heatmap
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(daysInCurrentMonth(), id: \.self) { day in
-                                    let isComplete = isHabitComplete(habit: habit, date: day)
-                                    Button(action: {
-                                        toggleCompletion(habit: habit, date: day, isComplete: isComplete)
-                                    }) {
-                                        Text("\(Calendar.current.component(.day, from: day))")
-                                            .frame(width: 36, height: 36)
-                                            .background(isComplete ? Color.green : Color(.systemGray5))
-                                            .foregroundColor(isComplete ? .white : .primary)
-                                            .clipShape(Circle())
-                                            .overlay(
-                                                Circle().stroke(Color.green, lineWidth: selectedDate.isSameDay(as: day) ? 2 : 0)
-                                            )
-                                    }
-                                }
+                            NavigationLink(destination: HabitDetailView(habit: habit)) {
+                                HabitRowView(habit: habit)
                             }
-                            .padding(.vertical, 8)
-                        }
-                        // Analytics Section
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Analytics").font(.headline)
-                            HStack(spacing: 24) {
-                                VStack(alignment: .leading) {
-                                    Text("Current Streak")
-                                        .font(.caption)
-                                    Text("\(currentStreak(for: habit)) days")
-                                        .fontWeight(.bold)
-                                }
-                                VStack(alignment: .leading) {
-                                    Text("Longest Streak")
-                                        .font(.caption)
-                                    Text("\(longestStreak(for: habit)) days")
-                                        .fontWeight(.bold)
-                                }
-                                VStack(alignment: .leading) {
-                                    Text("Monthly Completion %")
-                                        .font(.caption)
-                                    Text("\(monthlyCompletion(for: habit))%")
-                                        .fontWeight(.bold)
-                                }
-                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
                     }
                 }
+                .padding()
             }
-            .padding()
             .navigationTitle("Habits")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -83,78 +33,86 @@ struct HabitsView: View {
             .sheet(isPresented: $showingAddSheet) { AddHabitView() }
         }
     }
+}
 
-    // MARK: - Calendar Helpers
-    private func daysInCurrentMonth() -> [Date] {
-        let calendar = Calendar.current
-        let today = Date()
-        let range = calendar.range(of: .day, in: .month, for: today)!
-        let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: today))!
-        return range.compactMap { day -> Date? in
-            calendar.date(byAdding: .day, value: day - 1, to: startOfMonth)
+struct HabitRowView: View {
+    @Environment(\.modelContext) private var modelContext
+    var habit: Habit
+    
+    private var isCompletedToday: Bool {
+        habit.completions?.contains(where: { $0.completionDate.isSameDay(as: Date()) }) ?? false
+    }
+
+    var body: some View {
+        HStack(spacing: 15) {
+            HabitPlantView(streak: calculateStreak(for: habit).current)
+            
+            VStack(alignment: .leading) {
+                Text(habit.name)
+                    .font(.headline)
+                Text("Current Streak: \(calculateStreak(for: habit).current) days")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Button(action: toggleCompletion) {
+                Image(systemName: isCompletedToday ? "checkmark.circle.fill" : "circle")
+                    .font(.title)
+                    .foregroundColor(isCompletedToday ? .green : .gray)
+            }
+            .buttonStyle(BorderlessButtonStyle())
         }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
     }
-
-    private func isHabitComplete(habit: Habit, date: Date) -> Bool {
-        completions.contains { $0.habit?.id == habit.id && $0.completionDate.isSameDay(as: date) }
-    }
-
-    private func toggleCompletion(habit: Habit, date: Date, isComplete: Bool) {
-        if isComplete {
-            if let completion = completions.first(where: { $0.habit?.id == habit.id && $0.completionDate.isSameDay(as: date) }) {
+    
+    private func toggleCompletion() {
+        if isCompletedToday {
+            if let completion = habit.completions?.first(where: { $0.completionDate.isSameDay(as: Date()) }) {
                 modelContext.delete(completion)
             }
         } else {
-            let newCompletion = HabitCompletion(completionDate: date)
+            let newCompletion = HabitCompletion(completionDate: Date())
             newCompletion.habit = habit
             modelContext.insert(newCompletion)
         }
     }
-
-    // MARK: - Analytics
-    private func currentStreak(for habit: Habit) -> Int {
-        let days = daysInCurrentMonth().reversed()
-        var streak = 0
-        for day in days {
-            if isHabitComplete(habit: habit, date: day) {
-                streak += 1
-            } else if day < Date().startOfDay {
-                break
+    
+    private func calculateStreak(for habit: Habit) -> (current: Int, longest: Int) {
+        guard let completions = habit.completions, !completions.isEmpty else { return (0, 0) }
+        let sortedDates = completions.map { $0.completionDate.startOfDay }.sorted().removingDuplicates()
+        var currentStreak = 0
+        var longestStreak = 0
+        var streakStartDate = Date().startOfDay
+        if let lastCompletion = sortedDates.last, lastCompletion.isSameDay(as: Date().startOfDay) || lastCompletion.isSameDay(as: Calendar.current.date(byAdding: .day, value: -1, to: Date())!.startOfDay) {
+            for date in sortedDates.reversed() {
+                if date.isSameDay(as: streakStartDate) {
+                    currentStreak += 1
+                    streakStartDate = Calendar.current.date(byAdding: .day, value: -1, to: streakStartDate)!
+                } else {
+                    break
+                }
             }
         }
-        return streak
-    }
-
-    private func longestStreak(for habit: Habit) -> Int {
-        let days = daysInCurrentMonth()
-        var maxStreak = 0
-        var current = 0
-        for day in days {
-            if isHabitComplete(habit: habit, date: day) {
-                current += 1
-                maxStreak = max(maxStreak, current)
+        var currentLongest = 0
+        for i in 0..<sortedDates.count {
+            if i > 0 && sortedDates[i] == Calendar.current.date(byAdding: .day, value: 1, to: sortedDates[i-1]) {
+                currentLongest += 1
             } else {
-                current = 0
+                currentLongest = 1
+            }
+            if currentLongest > longestStreak {
+                longestStreak = currentLongest
             }
         }
-        return maxStreak
-    }
-
-    private func monthlyCompletion(for habit: Habit) -> Int {
-        let days = daysInCurrentMonth()
-        let completed = days.filter { isHabitComplete(habit: habit, date: $0) }.count
-        return days.isEmpty ? 0 : Int((Double(completed) / Double(days.count)) * 100)
-    }
-}
-
-// MARK: - Date Helper
-extension Date {
-    var startOfDay: Date { Calendar.current.startOfDay(for: self) }
-    func isSameDay(as other: Date) -> Bool {
-        Calendar.current.isDate(self, inSameDayAs: other)
+        return (currentStreak, longestStreak)
     }
 }
 
 #Preview {
     HabitsView()
 } 
+

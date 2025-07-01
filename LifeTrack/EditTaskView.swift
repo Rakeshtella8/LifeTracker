@@ -16,6 +16,14 @@ struct EditTaskView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                Section(header: Text("Description (optional)")) {
+                    TextEditor(text: Binding(
+                        get: { task.taskDescription ?? "" },
+                        set: { task.taskDescription = $0.isEmpty ? nil : $0 }
+                    ))
+                    .frame(minHeight: 80)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2)))
+                }
             }
             .navigationTitle("Edit Task")
             .toolbar {

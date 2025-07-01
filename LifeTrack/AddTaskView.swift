@@ -6,6 +6,7 @@ struct AddTaskView: View {
     @State private var title: String = ""
     @State private var dueDate: Date = Date()
     @State private var status: Status = .notStarted
+    @State private var taskDescription: String = ""
 
     var body: some View {
         NavigationStack {
@@ -18,6 +19,11 @@ struct AddTaskView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                Section(header: Text("Description (optional)")) {
+                    TextEditor(text: $taskDescription)
+                        .frame(minHeight: 80)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2)))
+                }
             }
             .navigationTitle("New Task")
             .toolbar {
@@ -34,7 +40,7 @@ struct AddTaskView: View {
     }
 
     private func addTask() {
-        let newTask = Task(title: title, dueDate: dueDate, status: status)
+        let newTask = Task(title: title, dueDate: dueDate, status: status, taskDescription: taskDescription.isEmpty ? nil : taskDescription)
         modelContext.insert(newTask)
     }
 } 

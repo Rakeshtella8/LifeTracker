@@ -29,50 +29,52 @@ struct TasksView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 12) {
-                DateFilterView(startDate: $startDate, endDate: $endDate)
-                Picker("Status", selection: $statusFilter) {
-                    ForEach(StatusFilter.allCases) { filter in
-                        Text(filter.rawValue).tag(filter)
+            ScrollView {
+                VStack(spacing: 12) {
+                    DateFilterView(startDate: $startDate, endDate: $endDate)
+                    Picker("Status", selection: $statusFilter) {
+                        ForEach(StatusFilter.allCases) { filter in
+                            Text(filter.rawValue).tag(filter)
+                        }
                     }
-                }
-                .pickerStyle(.segmented)
-                Group {
-                    if filteredTasks.isEmpty {
-                        ContentUnavailableView("No Tasks Yet", systemImage: "checkmark.circle", description: Text("Tap the + button to add your first task."))
-                    } else {
-                        List {
-                            ForEach(filteredTasks) { task in
-                                NavigationLink {
-                                    EditTaskView(task: task)
-                                } label: {
-                                    VStack(alignment: .leading) {
-                                        HStack {
-                                            Text(task.title)
-                                                .fontWeight(.semibold)
-                                            Spacer()
-                                            Text(task.status.rawValue)
+                    .pickerStyle(.segmented)
+                    Group {
+                        if filteredTasks.isEmpty {
+                            ContentUnavailableView("No Tasks Yet", systemImage: "checkmark.circle", description: Text("Tap the + button to add your first task."))
+                        } else {
+                            List {
+                                ForEach(filteredTasks) { task in
+                                    NavigationLink {
+                                        EditTaskView(task: task)
+                                    } label: {
+                                        VStack(alignment: .leading) {
+                                            HStack {
+                                                Text(task.title)
+                                                    .fontWeight(.semibold)
+                                                Spacer()
+                                                Text(task.status.rawValue)
+                                                    .font(.caption)
+                                                    .foregroundColor(color(for: task.status))
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 2)
+                                                    .background(color(for: task.status).opacity(0.15))
+                                                    .cornerRadius(6)
+                                            }
+                                            Text("Due: \(task.dueDate, style: .date)")
                                                 .font(.caption)
-                                                .foregroundColor(color(for: task.status))
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 2)
-                                                .background(color(for: task.status).opacity(0.15))
-                                                .cornerRadius(6)
+                                                .foregroundColor(.secondary)
                                         }
-                                        Text("Due: \(task.dueDate, style: .date)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
                                     }
-                                }
-                                .contextMenu {
-                                    ForEach(Status.allCases, id: \.self) { status in
-                                        Button(status.rawValue) {
-                                            updateStatus(for: task, to: status)
+                                    .contextMenu {
+                                        ForEach(Status.allCases, id: \.self) { status in
+                                            Button(status.rawValue) {
+                                                updateStatus(for: task, to: status)
+                                            }
                                         }
                                     }
                                 }
+                                .onDelete(perform: deleteTasks)
                             }
-                            .onDelete(perform: deleteTasks)
                         }
                     }
                 }

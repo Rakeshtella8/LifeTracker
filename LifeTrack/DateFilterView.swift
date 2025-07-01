@@ -21,8 +21,8 @@ struct DateFilterView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .onChange(of: selectedOption) { newValue in
-                updateDates(for: newValue)
+            .onChange(of: selectedOption) {
+                updateDates(for: selectedOption)
             }
             if selectedOption == .custom {
                 DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
@@ -54,7 +54,12 @@ struct DateFilterView: View {
 }
 
 #Preview {
-    @State var start = Date()
-    @State var end = Date()
-    return DateFilterView(startDate: $start, endDate: $end)
+    struct PreviewWrapper: View {
+        @State var start = Date()
+        @State var end = Date()
+        var body: some View {
+            DateFilterView(startDate: $start, endDate: $end)
+        }
+    }
+    return PreviewWrapper()
 } 

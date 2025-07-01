@@ -50,13 +50,15 @@ final class Task {
     var dueDate: Date
     var status: Status // Now uses the Status enum
     var tags: [String]?
+    var taskDescription: String?
 
-    init(id: UUID = UUID(), title: String, dueDate: Date = Date(), status: Status = .notStarted, tags: [String]? = nil) {
+    init(id: UUID = UUID(), title: String, dueDate: Date = Date(), status: Status = .notStarted, tags: [String]? = nil, taskDescription: String? = nil) {
         self.id = id
         self.title = title
         self.dueDate = dueDate
         self.status = status
         self.tags = tags
+        self.taskDescription = taskDescription
     }
 }
 

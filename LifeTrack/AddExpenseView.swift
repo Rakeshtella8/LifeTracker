@@ -54,5 +54,14 @@ struct AddExpenseView: View {
 }
 
 #Preview {
-    AddExpenseView()
+    struct PreviewWrapper: View {
+        @State var note = ""
+        @State var amount: Double? = nil
+        @State var date = Date()
+        @State var category = "Food"
+        var body: some View {
+            AddExpenseView()
+        }
+    }
+    return PreviewWrapper()
 } 
