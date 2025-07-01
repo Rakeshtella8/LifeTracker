@@ -40,7 +40,11 @@ struct AddTaskView: View {
     }
 
     private func addTask() {
-        let newTask = Task(title: title, dueDate: dueDate, status: status, taskDescription: taskDescription.isEmpty ? nil : taskDescription)
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return }
+        
+        let newTask = Task(title: trimmedTitle, dueDate: dueDate, status: status, taskDescription: taskDescription.isEmpty ? nil : taskDescription)
         modelContext.insert(newTask)
+        try? modelContext.save()
     }
 } 

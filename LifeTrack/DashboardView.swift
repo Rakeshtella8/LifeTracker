@@ -123,7 +123,6 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity)
 
                     // Optionally, add more dashboard sections below
-                    Spacer()
                 }
                 .padding()
             }

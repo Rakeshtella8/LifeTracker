@@ -22,6 +22,8 @@ struct LifeTrackApp: App {
                 HabitCompletion.self,
                 Task.self,
                 Expense.self,
+                BudgetCategory.self,
+                Item.self
             ])
             let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

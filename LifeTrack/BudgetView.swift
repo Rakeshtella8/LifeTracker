@@ -69,7 +69,7 @@ struct BudgetView: View {
                             .foregroundColor(.secondary)
                             .padding(.vertical)
                     } else {
-                        List {
+                        VStack(spacing: 12) {
                             ForEach(categories) { category in
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack {
@@ -81,9 +81,11 @@ struct BudgetView: View {
                                     ProgressView(value: min(spent(for: category) / max(category.budgetAmount, 1), 1.0))
                                         .accentColor(.blue)
                                 }
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(8)
                             }
                         }
-                        .listStyle(.plain)
                     }
                     Divider()
                     // Pie Chart
@@ -111,19 +113,22 @@ struct BudgetView: View {
                         Text("No transactions in this period.")
                             .foregroundColor(.secondary)
                     } else {
-                        List(recentTransactions) { expense in
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(expense.note).fontWeight(.semibold)
-                                    Text(expense.category).font(.caption).foregroundColor(.secondary)
+                        VStack(spacing: 8) {
+                            ForEach(recentTransactions) { expense in
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(expense.note).fontWeight(.semibold)
+                                        Text(expense.category).font(.caption).foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Text(expense.amount, format: .currency(code: "INR")).foregroundColor(.red)
                                 }
-                                Spacer()
-                                Text(expense.amount, format: .currency(code: "INR")).foregroundColor(.red)
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(8)
                             }
                         }
-                        .listStyle(.plain)
                     }
-                    Spacer()
                 }
                 .padding()
             }
@@ -160,9 +165,13 @@ struct BudgetSetupView: View {
                     TextField("Budget Amount", text: $newBudgetAmount)
                         .keyboardType(.decimalPad)
                     Button("Add") {
-                        if let amount = Double(newBudgetAmount), !newCategoryName.isEmpty {
-                            let newCat = BudgetCategory(name: newCategoryName, budgetAmount: amount)
+                        let trimmedName = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedAmount = newBudgetAmount.trimmingCharacters(in: .whitespacesAndNewlines)
+                        
+                        if let amount = Double(trimmedAmount), amount > 0, !trimmedName.isEmpty {
+                            let newCat = BudgetCategory(name: trimmedName, budgetAmount: amount)
                             modelContext.insert(newCat)
+                            try? modelContext.save()
                             newCategoryName = ""
                             newBudgetAmount = ""
                         }

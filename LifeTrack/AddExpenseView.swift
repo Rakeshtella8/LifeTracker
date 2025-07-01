@@ -45,10 +45,11 @@ struct AddExpenseView: View {
     }
 
     private func addExpense() {
-        guard let finalAmount = amount else { return }
+        guard let finalAmount = amount, finalAmount > 0 else { return }
         withAnimation {
             let newExpense = Expense(amount: finalAmount, date: date, category: category, paymentMode: "Card", note: note)
             modelContext.insert(newExpense)
+            try? modelContext.save()
         }
     }
 }

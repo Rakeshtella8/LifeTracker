@@ -21,7 +21,7 @@ struct HabitPlantView: View {
         case 3...6:
             return .green
         default:
-            return .green.opacity(1.2) // Brighter green
+            return .green.opacity(0.8) // Fixed opacity value
         }
     }
     

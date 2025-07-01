@@ -38,42 +38,48 @@ struct TasksView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    Group {
-                        if filteredTasks.isEmpty {
-                            ContentUnavailableView("No Tasks Yet", systemImage: "checkmark.circle", description: Text("Tap the + button to add your first task."))
-                        } else {
-                            List {
-                                ForEach(filteredTasks) { task in
-                                    NavigationLink {
-                                        EditTaskView(task: task)
-                                    } label: {
-                                        VStack(alignment: .leading) {
-                                            HStack {
-                                                Text(task.title)
-                                                    .fontWeight(.semibold)
-                                                Spacer()
-                                                Text(task.status.rawValue)
-                                                    .font(.caption)
-                                                    .foregroundColor(color(for: task.status))
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 2)
-                                                    .background(color(for: task.status).opacity(0.15))
-                                                    .cornerRadius(6)
-                                            }
-                                            Text("Due: \(task.dueDate, style: .date)")
+                    
+                    if filteredTasks.isEmpty {
+                        ContentUnavailableView("No Tasks Yet", systemImage: "checkmark.circle", description: Text("Tap the + button to add your first task."))
+                            .padding(.top, 20)
+                    } else {
+                        VStack(spacing: 8) {
+                            ForEach(filteredTasks) { task in
+                                NavigationLink {
+                                    EditTaskView(task: task)
+                                } label: {
+                                    VStack(alignment: .leading) {
+                                        HStack {
+                                            Text(task.title)
+                                                .fontWeight(.semibold)
+                                            Spacer()
+                                            Text(task.status.rawValue)
                                                 .font(.caption)
-                                                .foregroundColor(.secondary)
+                                                .foregroundColor(color(for: task.status))
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 2)
+                                                .background(color(for: task.status).opacity(0.15))
+                                                .cornerRadius(6)
                                         }
-                                    }
-                                    .contextMenu {
-                                        ForEach(Status.allCases, id: \.self) { status in
-                                            Button(status.rawValue) {
-                                                updateStatus(for: task, to: status)
-                                            }
-                                        }
+                                        Text("Due: \(task.dueDate, style: .date)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
                                     }
                                 }
-                                .onDelete(perform: deleteTasks)
+                                .buttonStyle(PlainButtonStyle())
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(8)
+                                .contextMenu {
+                                    ForEach(Status.allCases, id: \.self) { status in
+                                        Button(status.rawValue) {
+                                            updateStatus(for: task, to: status)
+                                        }
+                                    }
+                                    Button("Delete", role: .destructive) {
+                                        deleteTask(task)
+                                    }
+                                }
                             }
                         }
                     }
@@ -107,11 +113,10 @@ struct TasksView: View {
         try? modelContext.save()
     }
 
-    private func deleteTasks(offsets: IndexSet) {
+    private func deleteTask(_ task: Task) {
         withAnimation {
-            for index in offsets {
-                modelContext.delete(filteredTasks[index])
-            }
+            modelContext.delete(task)
+            try? modelContext.save()
         }
     }
 } 

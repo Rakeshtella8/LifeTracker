@@ -29,8 +29,12 @@ struct AddHabitView: View {
     }
 
     private func addHabit() {
-        let newHabit = Habit(name: name)
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        
+        let newHabit = Habit(name: trimmedName)
         modelContext.insert(newHabit)
+        try? modelContext.save()
     }
 }
 

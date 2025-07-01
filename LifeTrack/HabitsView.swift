@@ -12,7 +12,7 @@ struct HabitsView: View {
                 VStack(spacing: 12) {
                     if habits.isEmpty {
                         ContentUnavailableView("No Habits Yet", systemImage: "repeat", description: Text("Tap the + button to add your first habit."))
-                            .padding(.top, 50)
+                            .padding(.top, 20)
                     } else {
                         ForEach(habits) { habit in
                             NavigationLink(destination: HabitDetailView(habit: habit)) {
@@ -73,11 +73,13 @@ struct HabitRowView: View {
         if isCompletedToday {
             if let completion = habit.completions?.first(where: { $0.completionDate.isSameDay(as: Date()) }) {
                 modelContext.delete(completion)
+                try? modelContext.save()
             }
         } else {
             let newCompletion = HabitCompletion(completionDate: Date())
             newCompletion.habit = habit
             modelContext.insert(newCompletion)
+            try? modelContext.save()
         }
     }
     
