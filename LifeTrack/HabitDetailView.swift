@@ -145,21 +145,4 @@ extension Date {
         let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: self)!.start
         return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
     }
-}
-
-extension Array where Element: Hashable {
-    func removingDuplicates() -> [Element] {
-        var addedDict = [Element: Bool]()
-        return filter {
-            addedDict.updateValue(true, forKey: $0) == nil
-        }
-    }
-}
-
-// MARK: - Date Helper
-extension Date {
-    var startOfDay: Date { Calendar.current.startOfDay(for: self) }
-    func isSameDay(as other: Date) -> Bool {
-        Calendar.current.isDate(self, inSameDayAs: other)
-    }
 } 
