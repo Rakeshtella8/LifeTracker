@@ -95,4 +95,21 @@ final class BudgetCategory {
         self.name = name
         self.budgetAmount = budgetAmount
     }
+}
+
+@Model
+final class PaymentReminder {
+    @Attribute(.unique) var id: UUID
+    var name: String
+    var paymentDay: Int
+    var isRecurring: Bool
+    var lastClearedDate: Date?
+
+    init(id: UUID = UUID(), name: String, paymentDay: Int, isRecurring: Bool = false, lastClearedDate: Date? = nil) {
+        self.id = id
+        self.name = name
+        self.paymentDay = paymentDay
+        self.isRecurring = isRecurring
+        self.lastClearedDate = lastClearedDate
+    }
 } 

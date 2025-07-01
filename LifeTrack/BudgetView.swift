@@ -20,6 +20,7 @@ struct BudgetView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \BudgetCategory.name) private var categories: [BudgetCategory]
     @Query(sort: \Expense.date, order: .reverse) private var expenses: [Expense]
+    @Query(sort: \PaymentReminder.paymentDay) private var reminders: [PaymentReminder]
     @State private var showingAddSheet = false
     @State private var showingBudgetSetup = false
     @State private var showingEditSheet = false
@@ -31,6 +32,10 @@ struct BudgetView: View {
     @State private var showDayExpenses: Bool = false
     @State private var showingDeleteAlert = false
     @State private var expenseToDelete: Expense?
+    @State private var showingAddReminder = false
+    @State private var calendarMonth: Date = Date()
+    @State private var editingReminder: PaymentReminder?
+    @State private var showingEditReminder = false
     
     // Helper: Calculate amount spent in a category for the selected range
     private func spent(for category: BudgetCategory) -> Double {
@@ -73,6 +78,27 @@ struct BudgetView: View {
         expenses.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDay) }
     }
     
+    // Upcoming payments
+    private var upcomingReminders: [PaymentReminder] {
+        let calendar = Calendar.current
+        let now = Date()
+        return reminders.filter { reminder in
+            let dueDate = nextDueDate(for: reminder)
+            // Show if not cleared this month
+            if let lastCleared = reminder.lastClearedDate {
+                let lastClearedMonth = calendar.component(.month, from: lastCleared)
+                let thisMonth = calendar.component(.month, from: now)
+                let lastClearedYear = calendar.component(.year, from: lastCleared)
+                let thisYear = calendar.component(.year, from: now)
+                if lastClearedMonth == thisMonth && lastClearedYear == thisYear {
+                    return false
+                }
+            }
+            // Only show if due date is in the future or today
+            return dueDate >= now
+        }.sorted { nextDueDate(for: $0) < nextDueDate(for: $1) }
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -85,15 +111,19 @@ struct BudgetView: View {
                     }
                     .pickerStyle(.segmented)
                     .onChange(of: selectedPeriod) { updateDatesForPeriod() }
-                    // Calendar
-                    DatePicker("Select Day", selection: $selectedDay, displayedComponents: .date)
-                        .datePickerStyle(.graphical)
-                        .onChange(of: selectedDay) {
+                    // Calendar with reminder overlays
+                    CustomCalendarView(
+                        month: $calendarMonth,
+                        selectedDay: $selectedDay,
+                        reminders: remindersForMonth(calendarMonth),
+                        onDaySelected: { day in
+                            selectedDay = day
                             showDayExpenses = true
-                            startDate = Calendar.current.startOfDay(for: selectedDay)
+                            startDate = Calendar.current.startOfDay(for: day)
                             endDate = Calendar.current.date(byAdding: .day, value: 1, to: startDate)!.addingTimeInterval(-1)
                         }
-                        .padding(.bottom, 8)
+                    )
+                    .padding(.bottom, 8)
                     // Custom Range
                     if selectedPeriod == .custom {
                         HStack {
@@ -151,6 +181,56 @@ struct BudgetView: View {
                         Text(tip).font(.subheadline).foregroundColor(.secondary)
                     }
                     Divider()
+                    // Upcoming Payments Section
+                    if !upcomingReminders.isEmpty {
+                        Text("Upcoming Payments").font(.headline)
+                        VStack(spacing: 8) {
+                            ForEach(upcomingReminders) { reminder in
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(reminder.name).fontWeight(.semibold)
+                                        Text("Due on \(dueDateString(for: reminder))")
+                                            .font(.caption)
+                                    }
+                                    Spacer()
+                                    Button(action: { markAsPaid(reminder) }) {
+                                        Image(systemName: "checkmark.circle")
+                                            .foregroundColor(.white)
+                                            .background(Circle().fill(Color.blue).frame(width: 32, height: 32))
+                                    }
+                                }
+                                .padding(8)
+                                .background(Color.blue.opacity(0.15))
+                                .cornerRadius(10)
+                            }
+                        }
+                    }
+                    // Reminders Section (all reminders)
+                    if !reminders.isEmpty {
+                        Text("Reminders").font(.headline)
+                        VStack(spacing: 8) {
+                            ForEach(reminders) { reminder in
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(reminder.name).fontWeight(.semibold)
+                                        Text("Due on \(dueDateString(for: reminder))")
+                                            .font(.caption)
+                                    }
+                                    Spacer()
+                                    Menu {
+                                        Button("Edit") { editingReminder = reminder; showingEditReminder = true }
+                                        Button("Delete", role: .destructive) { deleteReminder(reminder) }
+                                    } label: {
+                                        Image(systemName: "ellipsis.circle")
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                                .padding(8)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(10)
+                            }
+                        }
+                    }
                     if showDayExpenses {
                         Text("Expenses for \(selectedDay, format: .dateTime.year().month().day())").font(.headline)
                         if dayExpenses.isEmpty {
@@ -196,8 +276,13 @@ struct BudgetView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingAddSheet = true }) {
-                        Image(systemName: "plus")
+                    HStack {
+                        Button(action: { showingAddSheet = true }) {
+                            Image(systemName: "plus")
+                        }
+                        Button(action: { showingAddReminder = true }) {
+                            Image(systemName: "bell.fill")
+                        }
                     }
                 }
             }
@@ -207,6 +292,14 @@ struct BudgetView: View {
             .sheet(isPresented: $showingEditSheet) {
                 if let expense = selectedExpense {
                     EditExpenseView(expense: expense)
+                }
+            }
+            .sheet(isPresented: $showingAddReminder) {
+                AddReminderView()
+            }
+            .sheet(isPresented: $showingEditReminder) {
+                if let reminder = editingReminder {
+                    EditReminderView(reminder: reminder)
                 }
             }
             .alert("Delete Expense", isPresented: $showingDeleteAlert) {
@@ -246,6 +339,43 @@ struct BudgetView: View {
     private func deleteExpense(_ expense: Expense) {
         withAnimation {
             modelContext.delete(expense)
+            try? modelContext.save()
+        }
+    }
+    
+    private func nextDueDate(for reminder: PaymentReminder) -> Date {
+        let calendar = Calendar.current
+        let now = Date()
+        let components = calendar.dateComponents([.year, .month], from: now)
+        return calendar.date(from: DateComponents(year: components.year, month: components.month, day: reminder.paymentDay)) ?? now
+    }
+    
+    private func dueDateString(for reminder: PaymentReminder) -> String {
+        let date = nextDueDate(for: reminder)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        return formatter.string(from: date)
+    }
+    
+    private func markAsPaid(_ reminder: PaymentReminder) {
+        reminder.lastClearedDate = Date()
+        try? modelContext.save()
+        NotificationManager.shared.cancelNotifications(for: reminder)
+    }
+    
+    // Helper to get reminders for the displayed month
+    private func remindersForMonth(_ month: Date) -> [PaymentReminder] {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month], from: month)
+        return reminders.filter { r in
+            let dueDate = calendar.date(from: DateComponents(year: components.year, month: components.month, day: r.paymentDay))
+            return dueDate != nil
+        }
+    }
+    
+    private func deleteReminder(_ reminder: PaymentReminder) {
+        withAnimation {
+            modelContext.delete(reminder)
             try? modelContext.save()
         }
     }
@@ -346,5 +476,142 @@ struct BudgetSetupView: View {
             modelContext.delete(category)
             try? modelContext.save()
         }
+    }
+}
+
+// --- Custom Calendar View for Reminders ---
+struct CustomCalendarView: View {
+    @Binding var month: Date
+    @Binding var selectedDay: Date
+    var reminders: [PaymentReminder]
+    var onDaySelected: (Date) -> Void
+    
+    private var calendar: Calendar { Calendar.current }
+    private var daysInMonth: [Date] {
+        let range = calendar.range(of: .day, in: .month, for: month)!
+        let components = calendar.dateComponents([.year, .month], from: month)
+        return range.compactMap { day -> Date? in
+            calendar.date(from: DateComponents(year: components.year, month: components.month, day: day))
+        }
+    }
+    private var reminderDays: Set<Int> {
+        let components = calendar.dateComponents([.year, .month], from: month)
+        return Set(reminders.filter { r in
+            let dueDate = calendar.date(from: DateComponents(year: components.year, month: components.month, day: r.paymentDay))
+            return dueDate != nil
+        }.map { $0.paymentDay })
+    }
+    var body: some View {
+        VStack {
+            HStack {
+                Button(action: { month = calendar.date(byAdding: .month, value: -1, to: month)! }) {
+                    Image(systemName: "chevron.left")
+                }
+                Spacer()
+                Text(month, format: .dateTime.month().year())
+                    .font(.headline)
+                Spacer()
+                Button(action: { month = calendar.date(byAdding: .month, value: 1, to: month)! }) {
+                    Image(systemName: "chevron.right")
+                }
+            }
+            .padding(.bottom, 4)
+            HStack {
+                ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \.self) { day in
+                    Text(day).frame(maxWidth: .infinity)
+                }
+            }
+            let firstDay = daysInMonth.first!
+            let weekday = calendar.component(.weekday, from: firstDay)
+            let leadingSpaces = weekday - calendar.firstWeekday
+            let totalDays = daysInMonth.count + max(leadingSpaces, 0)
+            let rows = Int(ceil(Double(totalDays) / 7.0))
+            ForEach(0..<rows, id: \.self) { row in
+                HStack {
+                    ForEach(0..<7, id: \.self) { col in
+                        let index = row * 7 + col
+                        if index < max(leadingSpaces, 0) || index - max(leadingSpaces, 0) >= daysInMonth.count {
+                            Spacer().frame(maxWidth: .infinity)
+                        } else {
+                            let dayDate = daysInMonth[index - max(leadingSpaces, 0)]
+                            let dayNum = calendar.component(.day, from: dayDate)
+                            Button(action: { onDaySelected(dayDate) }) {
+                                ZStack {
+                                    if calendar.isDate(dayDate, inSameDayAs: selectedDay) {
+                                        Circle().fill(Color.blue.opacity(0.2)).frame(width: 36, height: 36)
+                                    }
+                                    Text("\(dayNum)")
+                                        .foregroundColor(.primary)
+                                    if reminderDays.contains(dayNum) {
+                                        Circle()
+                                            .fill(Color.yellow)
+                                            .frame(width: 8, height: 8)
+                                            .offset(y: 14)
+                                    }
+                                }
+                                .frame(width: 36, height: 36)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+
+// --- Edit Reminder View ---
+struct EditReminderView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) var dismiss
+    @Bindable var reminder: PaymentReminder
+    @State private var name: String = ""
+    @State private var paymentDate: Date = Date()
+    @State private var isRecurring: Bool = false
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Reminder Details") {
+                    TextField("Reminder Name", text: $name)
+                    DatePicker("Payment Day", selection: $paymentDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                    Toggle("Remind me every month", isOn: $isRecurring)
+                }
+            }
+            .navigationTitle("Edit Reminder")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        saveReminder()
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .onAppear {
+                name = reminder.name
+                let calendar = Calendar.current
+                let now = Date()
+                let components = calendar.dateComponents([.year, .month], from: now)
+                paymentDate = calendar.date(from: DateComponents(year: components.year, month: components.month, day: reminder.paymentDay)) ?? now
+                isRecurring = reminder.isRecurring
+            }
+        }
+    }
+    private func saveReminder() {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        let calendar = Calendar.current
+        let day = calendar.component(.day, from: paymentDate)
+        reminder.name = trimmedName
+        reminder.paymentDay = day
+        reminder.isRecurring = isRecurring
+        try? modelContext.save()
     }
 }
