@@ -10,23 +10,36 @@ import SwiftData
 
 @main
 struct LifeTrackApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    // This creates the shared database container that the entire app will use.
+    // This is the standard and correct way to set up SwiftData.
+    let modelContainer: ModelContainer
 
+    init() {
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            // This defines which models are part of our database.
+            let schema = Schema([
+                Habit.self,
+                HabitCompletion.self,
+                Task.self,
+                Expense.self,
+            ])
+            let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+
+            // This creates the actual database file.
+            modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
+            // If the database can't be created, the app will crash with an error.
+            // This is important for debugging.
             fatalError("Could not create ModelContainer: \(error)")
         }
-    }()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(sharedModelContainer)
+        // This is the most critical line. It makes the database available to all views
+        // so they can read and write data.
+        .modelContainer(modelContainer)
     }
 }
