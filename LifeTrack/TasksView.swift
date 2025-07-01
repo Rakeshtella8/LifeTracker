@@ -31,37 +31,35 @@ struct TasksView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 12) {
-                    DateFilterView(startDate: $startDate, endDate: $endDate)
-                    Picker("Status", selection: $statusFilter) {
-                        ForEach(StatusFilter.allCases) { filter in
-                            Text(filter.rawValue).tag(filter)
-                        }
+            VStack(spacing: 12) {
+                DateFilterView(startDate: $startDate, endDate: $endDate)
+                Picker("Status", selection: $statusFilter) {
+                    ForEach(StatusFilter.allCases) { filter in
+                        Text(filter.rawValue).tag(filter)
                     }
-                    .pickerStyle(.segmented)
-                    
-                    if filteredTasks.isEmpty {
-                        ContentUnavailableView("No Tasks Yet", systemImage: "checkmark.circle", description: Text("Tap the + button to add your first task."))
-                            .padding(.top, 20)
-                    } else {
-                        VStack(spacing: 8) {
-                            ForEach(filteredTasks) { task in
-                                TaskRowView(task: task) {
-                                    selectedTask = task
-                                    showingEditSheet = true
-                                } onDelete: {
-                                    taskToDelete = task
-                                    showingDeleteAlert = true
-                                } onStatusChange: { status in
-                                    updateStatus(for: task, to: status)
-                                }
-                            }
-                            .onMove { from, to in
-                                moveTasks(from: from, to: to)
+                }
+                .pickerStyle(.segmented)
+                if filteredTasks.isEmpty {
+                    ContentUnavailableView("No Tasks Yet", systemImage: "checkmark.circle", description: Text("Tap the + button to add your first task."))
+                        .padding(.top, 20)
+                } else {
+                    List {
+                        ForEach(filteredTasks) { task in
+                            TaskRowView(task: task) {
+                                selectedTask = task
+                                showingEditSheet = true
+                            } onDelete: {
+                                taskToDelete = task
+                                showingDeleteAlert = true
+                            } onStatusChange: { status in
+                                updateStatus(for: task, to: status)
                             }
                         }
+                        .onMove { from, to in
+                            moveTasks(from: from, to: to)
+                        }
                     }
+                    .listStyle(.plain)
                 }
             }
             .padding([.horizontal, .top])
