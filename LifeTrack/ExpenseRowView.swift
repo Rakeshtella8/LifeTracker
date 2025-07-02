@@ -1,30 +1,28 @@
 import SwiftUI
 
 struct ExpenseRowView: View {
-    var expense: Expense
-    var onEdit: () -> Void
-    var onDelete: () -> Void
+    var expense: ExpenseModel
     
     var body: some View {
         HStack {
-            VStack(alignment: .leading) {
-                Text(expense.note).fontWeight(.semibold)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(expense.name).fontWeight(.semibold)
                 Text(expense.category).font(.caption).foregroundColor(.secondary)
             }
+            
             Spacer()
-            Text(expense.amount, format: .currency(code: "INR")).foregroundColor(.red)
-            OptionsMenuView(onEdit: onEdit, onDelete: onDelete)
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(expense.amount, format: .currency(code: "INR")).foregroundColor(.red)
+                Text(expense.date, format: .dateTime.day().month().year()).font(.caption).foregroundColor(.secondary)
+            }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
+        .padding(.vertical, 4)
     }
 }
 
 #Preview {
     ExpenseRowView(
-        expense: Expense(amount: 100, category: "Food", paymentMode: "Card", note: "Lunch"),
-        onEdit: { print("Edit") },
-        onDelete: { print("Delete") }
+        expense: ExpenseModel(name: "Lunch", amount: 100, category: "Food")
     )
 } 

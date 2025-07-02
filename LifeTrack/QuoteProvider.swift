@@ -6,6 +6,7 @@ struct Quote {
 }
 
 class QuoteProvider {
+    private static var shownQuotes: Set<Int> = []
     private static let quotes: [Quote] = [
         // General Motivational Quotes
         Quote(text: "The secret of getting ahead is getting started.", author: "Mark Twain"),
@@ -43,10 +44,30 @@ class QuoteProvider {
         Quote(text: "Your work is to discover your world and then with all your heart give yourself to it.", author: "Buddha"),
         Quote(text: "The mind is everything. What you think you become.", author: "Buddha"),
         Quote(text: "To keep the body in good health is a duty... otherwise we shall not be able to keep our mind strong and clear.", author: "Buddha"),
-        Quote(text: "Thousands of candles can be lit from a single candle, and the life of the candle will not be shortened. Happiness never decreases by being shared.", author: "Buddha")
+        Quote(text: "Thousands of candles can be lit from a single candle, and the life of the candle will not be shortened. Happiness never decreases by being shared.", author: "Buddha"),
+        // Add 100+ more unique quotes for demonstration
+        Quote(text: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky"),
+        Quote(text: "Act as if what you do makes a difference. It does.", author: "William James"),
+        Quote(text: "What you get by achieving your goals is not as important as what you become by achieving your goals.", author: "Zig Ziglar"),
+        Quote(text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt"),
+        Quote(text: "When you have a dream, you've got to grab it and never let go.", author: "Carol Burnett"),
+        Quote(text: "I can't change the direction of the wind, but I can adjust my sails to always reach my destination.", author: "Jimmy Dean"),
+        Quote(text: "No matter what you're going through, there's a light at the end of the tunnel.", author: "Demi Lovato"),
+        Quote(text: "It is our attitude at the beginning of a difficult task which, more than anything else, will affect its successful outcome.", author: "William James"),
+        Quote(text: "Life is like riding a bicycle. To keep your balance, you must keep moving.", author: "Albert Einstein"),
+        Quote(text: "Just one small positive thought in the morning can change your whole day.", author: "Dalai Lama"),
+        // ... (add hundreds more as needed)
     ]
     
     static func getRandomQuote() -> Quote {
-        quotes.randomElement() ?? quotes.first!
+        if shownQuotes.count == quotes.count {
+            shownQuotes.removeAll()
+        }
+        var idx: Int
+        repeat {
+            idx = Int.random(in: 0..<quotes.count)
+        } while shownQuotes.contains(idx) && shownQuotes.count < quotes.count
+        shownQuotes.insert(idx)
+        return quotes[idx]
     }
 } 

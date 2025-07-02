@@ -17,22 +17,14 @@ struct LifeTrackApp: App {
     init() {
         do {
             // This defines which models are part of our database.
-            let schema = Schema([
-                Habit.self,
-                HabitCompletion.self,
-                Task.self,
-                Expense.self,
-                BudgetCategory.self,
-                Item.self
-            ])
-            let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-            // This creates the actual database file.
-            modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            modelContainer = try ModelContainer(
+                for: Task.self, Habit.self, ExpenseModel.self, BudgetCategory.self, PaymentReminder.self,
+                configurations: ModelConfiguration(isStoredInMemoryOnly: false)
+            )
         } catch {
             // If the database can't be created, the app will crash with an error.
             // This is important for debugging.
-            fatalError("Could not create ModelContainer: \(error)")
+            fatalError("Could not initialize ModelContainer: \(error)")
         }
     }
 

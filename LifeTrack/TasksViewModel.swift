@@ -26,15 +26,23 @@ class TasksViewModel: ObservableObject {
     }
     
     func fetchTasks() {
-        let descriptor = FetchDescriptor<Task>(sortBy: [SortDescriptor(\Task.dueDate, order: .forward)])
+        let descriptor = FetchDescriptor<Task>(sortBy: [SortDescriptor(\Task.priority, order: .forward)])
         tasks = (try? modelContext.fetch(descriptor)) ?? []
         applyFilters()
     }
     
     func applyFilters() {
         filteredTasks = tasks.filter { task in
-            (statusFilter == .all || task.status.rawValue == statusFilter.rawValue) &&
-            task.dueDate >= startDate && task.dueDate <= endDate
+            switch statusFilter {
+            case .all:
+                return task.dueDate >= startDate && task.dueDate <= endDate
+            case .notStarted:
+                return task.status == .notStarted && task.dueDate >= startDate && task.dueDate <= endDate
+            case .inProgress:
+                return task.status == .inProgress && task.dueDate >= startDate && task.dueDate <= endDate
+            case .completed:
+                return task.status == .completed && task.dueDate >= startDate && task.dueDate <= endDate
+            }
         }
     }
     
@@ -51,6 +59,9 @@ class TasksViewModel: ObservableObject {
     
     func addTask(_ task: Task) {
         modelContext.insert(task)
+        withAnimation {
+            filteredTasks.insert(task, at: 0)
+        }
         fetchTasks()
     }
     
@@ -61,6 +72,22 @@ class TasksViewModel: ObservableObject {
     
     func deleteTask(_ task: Task) {
         modelContext.delete(task)
+        fetchTasks()
+    }
+    
+    func reorderTasks(from source: IndexSet, to destination: Int) {
+        var updatedTasks = filteredTasks
+        updatedTasks.move(fromOffsets: source, toOffset: destination)
+        for (index, task) in updatedTasks.enumerated() {
+            task.priority = index
+        }
+        try? modelContext.save()
+        fetchTasks()
+    }
+    
+    func updateStatus(for task: Task, to status: Status) {
+        task.status = status
+        try? modelContext.save()
         fetchTasks()
     }
 } 

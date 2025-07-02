@@ -5,25 +5,33 @@ class NotificationManager {
     static let shared = NotificationManager()
     private init() {}
     
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+    
     func scheduleNotifications(for reminder: PaymentReminder) {
         let center = UNUserNotificationCenter.current()
         let calendar = Calendar.current
         let now = Date()
-        guard let month = calendar.dateComponents([.year, .month], from: now).month,
-              let year = calendar.dateComponents([.year], from: now).year else { return }
         
-        // Schedule notifications for 2 days before and on paymentDay
-        for offset in (-2)...0 {
-            if let dueDate = calendar.date(from: DateComponents(year: year, month: month, day: reminder.paymentDay + offset)) {
-                if dueDate >= now {
-                    let content = UNMutableNotificationContent()
-                    content.title = "Payment Reminder"
-                    content.body = "\(reminder.name) is due on the \(reminder.paymentDay)th."
-                    content.sound = .default
-                    let triggerDate = calendar.dateComponents([.year, .month, .day], from: dueDate)
-                    let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
-                    let request = UNNotificationRequest(identifier: notificationID(for: reminder, date: dueDate), content: content, trigger: trigger)
-                    center.add(request)
+        // Schedule notifications for each date in the reminder
+        for dueDate in reminder.dates {
+            if dueDate >= now {
+                // Schedule notification for the due date and 2 days before
+                for offset in (-2)...0 {
+                    let notificationDate = calendar.date(byAdding: .day, value: offset, to: dueDate) ?? dueDate
+                    if notificationDate >= now {
+                        let content = UNMutableNotificationContent()
+                        content.title = "Payment Reminder"
+                        content.body = "\(reminder.name) is due on \(dateFormatter.string(from: dueDate))."
+                        content.sound = .default
+                        let triggerDate = calendar.dateComponents([.year, .month, .day], from: notificationDate)
+                        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
+                        let request = UNNotificationRequest(identifier: notificationID(for: reminder, date: notificationDate), content: content, trigger: trigger)
+                        center.add(request)
+                    }
                 }
             }
         }
@@ -32,13 +40,13 @@ class NotificationManager {
     func cancelNotifications(for reminder: PaymentReminder) {
         let center = UNUserNotificationCenter.current()
         let calendar = Calendar.current
-        let now = Date()
-        guard let month = calendar.dateComponents([.year, .month], from: now).month,
-              let year = calendar.dateComponents([.year], from: now).year else { return }
         var ids: [String] = []
-        for offset in (-2)...0 {
-            if let dueDate = calendar.date(from: DateComponents(year: year, month: month, day: reminder.paymentDay + offset)) {
-                ids.append(notificationID(for: reminder, date: dueDate))
+        
+        // Cancel notifications for each date in the reminder
+        for dueDate in reminder.dates {
+            for offset in (-2)...0 {
+                let notificationDate = calendar.date(byAdding: .day, value: offset, to: dueDate) ?? dueDate
+                ids.append(notificationID(for: reminder, date: notificationDate))
             }
         }
         center.removePendingNotificationRequests(withIdentifiers: ids)

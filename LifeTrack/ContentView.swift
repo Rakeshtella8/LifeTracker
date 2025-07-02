@@ -14,7 +14,7 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $tabManager.selectedTab) {
-            DashboardView(tabManager: tabManager)
+            DashboardView()
                 .tabItem { Label("Dashboard", systemImage: "house.fill") }
                 .tag(0)
 
@@ -22,7 +22,7 @@ struct ContentView: View {
                 .tabItem { Label("Habits", systemImage: "repeat") }
                 .tag(1)
 
-            TasksView()
+            TasksViewContainer()
                 .tabItem { Label("Tasks", systemImage: "checkmark.circle") }
                 .tag(2)
 

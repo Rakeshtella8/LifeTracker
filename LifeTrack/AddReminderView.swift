@@ -37,9 +37,7 @@ struct AddReminderView: View {
     private func addReminder() {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
-        let calendar = Calendar.current
-        let day = calendar.component(.day, from: paymentDate)
-        let reminder = PaymentReminder(name: trimmedName, paymentDay: day, isRecurring: isRecurring)
+        let reminder = PaymentReminder(name: trimmedName, dates: [paymentDate], isRecurring: isRecurring)
         modelContext.insert(reminder)
         try? modelContext.save()
         // NotificationManager.shared.scheduleNotifications(for: reminder) // To be implemented

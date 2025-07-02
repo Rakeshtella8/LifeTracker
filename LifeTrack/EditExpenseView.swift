@@ -3,95 +3,99 @@ import SwiftData
 
 struct EditExpenseView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) var dismiss
-    @Bindable var expense: Expense
-    @Query(sort: \BudgetCategory.name) private var budgetCategories: [BudgetCategory]
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var expense: ExpenseModel
     
-    @State private var note: String = ""
+    @State private var name: String = ""
     @State private var amount: Double = 0
-    @State private var date: Date = Date()
     @State private var category: String = "Food"
     @State private var customCategory: String = ""
-    @State private var showingCustomCategoryField = false
+    @State private var date: Date = Date()
+    @State private var notes: String = ""
+    @State private var showingCustomCategory = false
     
-    // Default categories plus custom ones from budget setup
-    private var allCategories: [String] {
-        let defaultCategories = ["Food", "Transport", "Shopping", "Utilities", "Miscellaneous"]
-        let customCategories = budgetCategories.map { $0.name }
-        return defaultCategories + customCategories + ["Other"]
-    }
+    let categories = ["Food", "Transport", "Shopping", "Entertainment", "Bills", "Healthcare", "Education", "Other"]
     
     var body: some View {
         NavigationStack {
             Form {
-                Section("Details") {
-                    TextField("Note", text: $note)
+                Section("Expense Details") {
+                    TextField("Expense Name", text: $name)
+                    
                     TextField("Amount", value: $amount, format: .currency(code: "INR"))
                         .keyboardType(.decimalPad)
-                }
-                
-                Section("Category") {
-                    Picker("Category", selection: $category) {
-                        ForEach(allCategories, id: \.self) { category in
-                            Text(category)
+                    
+                    if showingCustomCategory {
+                        TextField("Custom Category", text: $customCategory)
+                    } else {
+                        Picker("Category", selection: $category) {
+                            ForEach(categories, id: \.self) { category in
+                                Text(category).tag(category)
+                            }
                         }
                     }
-                    .onChange(of: category) {
-                        showingCustomCategoryField = category == "Other"
-                    }
                     
-                    if showingCustomCategoryField {
-                        TextField("Custom Category Name", text: $customCategory)
+                    Button(showingCustomCategory ? "Use Preset Categories" : "Add Custom Category") {
+                        showingCustomCategory.toggle()
                     }
                     
                     DatePicker("Date", selection: $date, displayedComponents: .date)
+                    
+                    TextField("Notes (Optional)", text: $notes, axis: .vertical)
+                        .lineLimit(3...6)
                 }
             }
             .navigationTitle("Edit Expense")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        saveExpense()
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
                         dismiss()
                     }
-                    .disabled(note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || amount <= 0 || (category == "Other" && customCategory.isEmpty))
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        saveExpense()
+                    }
                 }
             }
             .onAppear {
-                note = expense.note
+                name = expense.name
                 amount = expense.amount
                 date = expense.date
+                notes = expense.notes ?? ""
                 
-                // Set the category properly
-                if allCategories.contains(expense.category) {
+                if categories.contains(expense.category) {
                     category = expense.category
                 } else {
-                    // If it's a custom category not in the list, set to "Other" and populate custom field
-                    category = "Other"
                     customCategory = expense.category
-                    showingCustomCategoryField = true
+                    showingCustomCategory = true
                 }
             }
         }
     }
     
     private func saveExpense() {
-        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedNote.isEmpty, amount > 0 else { return }
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        let finalCategory = category == "Other" ? customCategory : category
+        guard !trimmedName.isEmpty, amount > 0 else { return }
         
-        expense.note = trimmedNote
+        let finalCategory = showingCustomCategory ? customCategory.trimmingCharacters(in: .whitespacesAndNewlines) : category
+        guard !finalCategory.isEmpty else { return }
+        
+        expense.name = trimmedName
         expense.amount = amount
         expense.date = date
         expense.category = finalCategory
+        expense.notes = trimmedNotes.isEmpty ? nil : trimmedNotes
+        
         try? modelContext.save()
+        dismiss()
     }
 }
 
 #Preview {
-    EditExpenseView(expense: Expense(amount: 100, category: "Food", paymentMode: "Card", note: "Lunch"))
+    EditExpenseView(expense: ExpenseModel(name: "Lunch", amount: 100, category: "Food"))
+        .modelContainer(for: [ExpenseModel.self], inMemory: true)
 } 
