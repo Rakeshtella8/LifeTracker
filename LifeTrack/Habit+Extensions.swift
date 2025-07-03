@@ -22,21 +22,25 @@ extension Habit {
             var currentLongest = 1
             for i in 1..<sortedDates.count {
                 if let expectedPreviousDay = Calendar.current.date(byAdding: .day, value: -1, to: sortedDates[i]),
-                   !sortedDates.contains(where: { $0.isSameDay(as: expectedPreviousDay) }) {
-                    return false
+                   sortedDates[i-1].isSameDay(as: expectedPreviousDay) {
+                    currentLongest += 1
+                } else {
+                    currentLongest = 1
+                }
+                if currentLongest > longestStreak {
+                    longestStreak = currentLongest
                 }
             }
             if longestStreak == 0 { // If loop didn't run
                 longestStreak = 1
             }
         }
-        
 
         // Calculate Current Streak
         var currentStreak = 0
         let today = Calendar.current.startOfDay(for: Date())
         guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today) else {
-            return 0
+            return (currentStreak, longestStreak)
         }
 
         if sortedDates.contains(where: { $0.isSameDay(as: today) }) || sortedDates.contains(where: { $0.isSameDay(as: yesterday) }) {

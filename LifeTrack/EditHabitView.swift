@@ -35,9 +35,12 @@ struct EditHabitView: View {
     private func saveHabit() {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
-        
         habit.name = trimmedName
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save habit: \(error)")
+        }
     }
 }
 

@@ -31,10 +31,13 @@ struct AddHabitView: View {
     private func addHabit() {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
-        
-        let newHabit = Habit(name: trimmedName)
+        let newHabit = Habit(name: trimmedName, frequency: "daily")
         modelContext.insert(newHabit)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save habit: \(error)")
+        }
     }
 }
 

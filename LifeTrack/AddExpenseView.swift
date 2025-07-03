@@ -72,7 +72,11 @@ struct AddExpenseView: View {
         
         let newExpense = ExpenseModel(name: trimmedName, amount: finalAmount, category: finalCategory, date: date, notes: trimmedNotes.isEmpty ? nil : trimmedNotes)
         modelContext.insert(newExpense)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save expense: \(error)")
+        }
         dismiss()
     }
 }

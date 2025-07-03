@@ -48,6 +48,10 @@ struct AddTaskView: View {
         let nextPriority = tasks.first?.priority ?? -1
         let newTask = Task(title: trimmedTitle, dueDate: dueDate, status: status, priority: nextPriority + 1, taskDescription: taskDescription.isEmpty ? nil : taskDescription)
         modelContext.insert(newTask)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save task: \(error)")
+        }
     }
 } 

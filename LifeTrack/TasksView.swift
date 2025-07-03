@@ -100,14 +100,42 @@ struct TasksView: View {
         }
     }
 
-    private func deleteTask(_ task: Task) {
-        modelContext.delete(task)
-        try? modelContext.save()
+    func deleteTask(_ task: Task) {
+        withAnimation {
+            modelContext.delete(task)
+            do {
+                try modelContext.save()
+            } catch {
+                print("Failed to delete task: \(error)")
+            }
+        }
+    }
+    
+    func toggleTaskStatus(_ task: Task) {
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to update task status: \(error)")
+        }
+    }
+    
+    private func addTask() {
+        let newTask = Task(title: "New Task", dueDate: Date())
+        modelContext.insert(newTask)
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to create task: \(error)")
+        }
     }
     
     private func updateStatus(for task: Task, to newStatus: Status) {
         task.status = newStatus
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to update task status: \(error)")
+        }
     }
     
     private func reorderTasks(from source: IndexSet, to destination: Int) {

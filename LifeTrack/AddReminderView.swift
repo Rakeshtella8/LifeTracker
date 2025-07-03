@@ -39,7 +39,11 @@ struct AddReminderView: View {
         guard !trimmedName.isEmpty else { return }
         let reminder = PaymentReminder(name: trimmedName, dates: [paymentDate], isRecurring: isRecurring)
         modelContext.insert(reminder)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save reminder: \(error)")
+        }
         // NotificationManager.shared.scheduleNotifications(for: reminder) // To be implemented
     }
 }

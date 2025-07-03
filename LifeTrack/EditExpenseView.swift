@@ -77,8 +77,6 @@ struct EditExpenseView: View {
     
     private func saveExpense() {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        
         guard !trimmedName.isEmpty, amount > 0 else { return }
         
         let finalCategory = showingCustomCategory ? customCategory.trimmingCharacters(in: .whitespacesAndNewlines) : category
@@ -88,9 +86,12 @@ struct EditExpenseView: View {
         expense.amount = amount
         expense.date = date
         expense.category = finalCategory
-        expense.notes = trimmedNotes.isEmpty ? nil : trimmedNotes
-        
-        try? modelContext.save()
+        expense.notes = notes.isEmpty ? nil : notes
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save expense: \(error)")
+        }
         dismiss()
     }
 }
