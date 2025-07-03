@@ -8,37 +8,127 @@ struct ChartData: Identifiable {
     let amount: Double
 }
 
-enum BudgetPeriod: String, CaseIterable, Identifiable {
-    case today = "Today"
-    case week = "This Week"
-    case month = "This Month"
-    case custom = "Custom"
-    var id: String { self.rawValue }
-}
-
 struct BudgetView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \BudgetCategory.name) private var categories: [BudgetCategory]
-    @Query(sort: \Expense.date, order: .reverse) private var expenses: [Expense]
+    @Query(sort: \ExpenseModel.date, order: .reverse) private var expenses: [ExpenseModel]
+    @Query(sort: \PaymentReminder.name) private var reminders: [PaymentReminder]
     @State private var showingAddSheet = false
     @State private var showingBudgetSetup = false
     @State private var showingEditSheet = false
-    @State private var selectedExpense: Expense?
+    @State private var selectedExpense: ExpenseModel?
     @State private var startDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var endDate: Date = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!.addingTimeInterval(-1)
-    @State private var selectedPeriod: BudgetPeriod = .today
+    @State private var selectedPeriod: BudgetPeriod = .day
     @State private var selectedDay: Date = Date()
     @State private var showDayExpenses: Bool = false
     @State private var showingDeleteAlert = false
-    @State private var expenseToDelete: Expense?
+    @State private var expenseToDelete: ExpenseModel?
+    @State private var showingAddReminder = false
+    @State private var calendarMonth: Date = Date()
+    @State private var editingReminder: PaymentReminder?
+    @State private var showingEditReminder = false
+    @State private var isCustomRange: Bool = false
     
-    // Helper: Calculate amount spent in a category for the selected range
+    var body: some View {
+        NavigationStack {
+            content
+        }
+    }
+    
+    private var content: some View {
+        ScrollView {
+            mainVStack
+        }
+        .navigationTitle("Budget")
+        .sheet(isPresented: $showingBudgetSetup) {
+            BudgetSetupView()
+        }
+        .toolbar {
+            toolbarContent
+        }
+        .sheet(isPresented: $showingAddSheet) {
+            AddExpenseView()
+        }
+        .sheet(isPresented: $showingEditSheet) {
+            if let expense = selectedExpense {
+                EditExpenseView(expense: expense)
+            }
+        }
+        .sheet(isPresented: $showingAddReminder) {
+            AddReminderView()
+        }
+        .sheet(isPresented: $showingEditReminder) {
+            if let reminder = editingReminder {
+                EditReminderView(reminder: reminder)
+            }
+        }
+        .alert("Delete Expense", isPresented: $showingDeleteAlert) {
+            deleteAlertButtons
+        } message: {
+            Text("Are you sure you want to delete this expense? This action cannot be undone.")
+        }
+    }
+    
+    private var mainVStack: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            periodPickerView
+        }
+        .padding()
+    }
+    
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarTrailing) {
+            HStack {
+                Button(action: { showingAddSheet = true }) {
+                    Image(systemName: "plus")
+                }
+                Button(action: { showingAddReminder = true }) {
+                    Image(systemName: "bell.fill")
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var deleteAlertButtons: some View {
+        Button("Cancel", role: .cancel) { }
+        Button("Delete", role: .destructive) {
+            if let expense = expenseToDelete {
+                deleteExpense(expense)
+            }
+        }
+    }
+    
+    private var periodPickerView: some View {
+        VStack(spacing: 8) {
+            Picker("Period", selection: $selectedPeriod) {
+                ForEach(BudgetPeriod.allCases) { period in
+                    Text(period.rawValue).tag(period)
+                }
+                Text("Custom").tag(BudgetPeriod?.none)
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: selectedPeriod) {
+                isCustomRange = false
+                updateDatesForPeriod()
+            }
+            
+            Button("Custom Range") {
+                isCustomRange = true
+            }
+            .font(.caption)
+            .foregroundColor(.blue)
+        }
+    }
+    
+    // MARK: - Computed Properties
+    
     private func spent(for category: BudgetCategory) -> Double {
         expenses.filter { $0.category == category.name && $0.date >= startDate && $0.date <= endDate }
             .reduce(0) { $0 + $1.amount }
     }
     
-    // Helper: Financial Insights
     private var insights: [String] {
         var tips: [String] = []
         for category in categories {
@@ -54,179 +144,51 @@ struct BudgetView: View {
         return tips.isEmpty ? ["You're managing your budget well!"] : tips
     }
     
-    // Pie chart data
     private var pieData: [ChartData] {
         let grouped = Dictionary(grouping: expenses.filter { $0.date >= startDate && $0.date <= endDate }, by: { $0.category })
         return grouped.map { (key, value) in ChartData(category: key, amount: value.reduce(0) { $0 + $1.amount }) }
             .filter { $0.amount > 0 }
     }
     
-    // Recent transactions
-    private var recentTransactions: [Expense] {
+    private var recentTransactions: [ExpenseModel] {
         expenses.filter { $0.date >= startDate && $0.date <= endDate }
             .prefix(10)
             .map { $0 }
     }
     
-    // Expenses for selected day
-    private var dayExpenses: [Expense] {
+    private var dayExpenses: [ExpenseModel] {
         expenses.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDay) }
     }
     
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Period Picker
-                    Picker("Period", selection: $selectedPeriod) {
-                        ForEach(BudgetPeriod.allCases) { period in
-                            Text(period.rawValue).tag(period)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: selectedPeriod) { updateDatesForPeriod() }
-                    // Calendar
-                    DatePicker("Select Day", selection: $selectedDay, displayedComponents: .date)
-                        .datePickerStyle(.graphical)
-                        .onChange(of: selectedDay) {
-                            showDayExpenses = true
-                            startDate = Calendar.current.startOfDay(for: selectedDay)
-                            endDate = Calendar.current.date(byAdding: .day, value: 1, to: startDate)!.addingTimeInterval(-1)
-                        }
-                        .padding(.bottom, 8)
-                    // Custom Range
-                    if selectedPeriod == .custom {
-                        HStack {
-                            DatePicker("Start", selection: $startDate, displayedComponents: .date)
-                            DatePicker("End", selection: $endDate, displayedComponents: .date)
-                        }
-                    }
-                    HStack {
-                        Text("Budgets").font(.title2).bold()
-                        Spacer()
-                        Button("Setup Budgets") { showingBudgetSetup = true }
-                            .font(.subheadline)
-                    }
-                    if categories.isEmpty {
-                        Text("No budget categories set up yet.")
-                            .foregroundColor(.secondary)
-                            .padding(.vertical)
-                    } else {
-                        VStack(spacing: 12) {
-                            ForEach(categories) { category in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack {
-                                        Text(category.name).fontWeight(.semibold)
-                                        Spacer()
-                                        Text("₹\(spent(for: category), specifier: "%.2f") / ₹\(category.budgetAmount, specifier: "%.2f")")
-                                            .font(.caption)
-                                    }
-                                    ProgressView(value: min(spent(for: category) / max(category.budgetAmount, 1), 1.0))
-                                        .accentColor(.blue)
-                                }
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(8)
-                            }
-                        }
-                    }
-                    Divider()
-                    // Pie Chart
-                    if !pieData.isEmpty {
-                        Chart {
-                            ForEach(pieData) { item in
-                                SectorMark(
-                                    angle: .value("Amount", item.amount),
-                                    innerRadius: .ratio(0.5),
-                                    angularInset: 2
-                                )
-                                .foregroundStyle(by: .value("Category", item.category))
-                            }
-                        }
-                        .frame(height: 180)
-                        .padding(.vertical, 8)
-                    }
-                    Text("Financial Insights").font(.headline)
-                    ForEach(insights, id: \.self) { tip in
-                        Text(tip).font(.subheadline).foregroundColor(.secondary)
-                    }
-                    Divider()
-                    if showDayExpenses {
-                        Text("Expenses for \(selectedDay, format: .dateTime.year().month().day())").font(.headline)
-                        if dayExpenses.isEmpty {
-                            Text("No expenses for this day.").foregroundColor(.secondary)
-                        } else {
-                            VStack(spacing: 8) {
-                                ForEach(dayExpenses) { expense in
-                                    ExpenseRowView(expense: expense) {
-                                        selectedExpense = expense
-                                        showingEditSheet = true
-                                    } onDelete: {
-                                        expenseToDelete = expense
-                                        showingDeleteAlert = true
-                                    }
-                                }
-                            }
-                        }
-                        Divider()
-                    }
-                    Text("Recent Transactions").font(.headline)
-                    if recentTransactions.isEmpty {
-                        Text("No transactions in this period.")
-                            .foregroundColor(.secondary)
-                    } else {
-                        VStack(spacing: 8) {
-                            ForEach(recentTransactions) { expense in
-                                ExpenseRowView(expense: expense) {
-                                    selectedExpense = expense
-                                    showingEditSheet = true
-                                } onDelete: {
-                                    expenseToDelete = expense
-                                    showingDeleteAlert = true
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Budget")
-            .sheet(isPresented: $showingBudgetSetup) {
-                BudgetSetupView()
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingAddSheet = true }) {
-                        Image(systemName: "plus")
-                    }
+    private var upcomingPayments: [PaymentReminder] {
+        let calendar = Calendar.current
+        let now = Date()
+        return reminders.filter { reminder in
+            let dueDate = nextDueDate(for: reminder)
+            if let lastCleared = reminder.lastClearedDate {
+                let lastClearedMonth = calendar.component(.month, from: lastCleared)
+                let thisMonth = calendar.component(.month, from: now)
+                let lastClearedYear = calendar.component(.year, from: lastCleared)
+                let thisYear = calendar.component(.year, from: now)
+                if lastClearedMonth == thisMonth && lastClearedYear == thisYear {
+                    return false
                 }
             }
-            .sheet(isPresented: $showingAddSheet) {
-                AddExpenseView()
-            }
-            .sheet(isPresented: $showingEditSheet) {
-                if let expense = selectedExpense {
-                    EditExpenseView(expense: expense)
-                }
-            }
-            .alert("Delete Expense", isPresented: $showingDeleteAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    if let expense = expenseToDelete {
-                        deleteExpense(expense)
-                    }
-                }
-            } message: {
-                Text("Are you sure you want to delete this expense? This action cannot be undone.")
-            }
-        }
+            return dueDate >= now
+        }.sorted { nextDueDate(for: $0) < nextDueDate(for: $1) }
     }
+    
+    private var todayExpenses: [ExpenseModel] {
+        expenses.filter { Calendar.current.isDate($0.date, inSameDayAs: Date()) }
+    }
+    
+    // MARK: - Helper Methods
     
     private func updateDatesForPeriod() {
         let calendar = Calendar.current
         let now = Date()
         switch selectedPeriod {
-        case .today:
+        case .day:
             startDate = calendar.startOfDay(for: now)
             endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!.addingTimeInterval(-1)
         case .week:
@@ -237,17 +199,76 @@ struct BudgetView: View {
             let month = calendar.dateInterval(of: .month, for: now)!
             startDate = month.start
             endDate = month.end.addingTimeInterval(-1)
-        case .custom:
-            // Don't change start/end, user will pick
-            break
         }
     }
     
-    private func deleteExpense(_ expense: Expense) {
+    private func deleteExpense(_ expense: ExpenseModel) {
         withAnimation {
             modelContext.delete(expense)
             try? modelContext.save()
         }
+    }
+    
+    private func nextDueDate(for reminder: PaymentReminder) -> Date {
+        let calendar = Calendar.current
+        let now = Date()
+        let futureDates = reminder.dates.filter { $0 >= now }
+        return futureDates.min() ?? now
+    }
+    
+    private func dueDateString(for reminder: PaymentReminder) -> String {
+        let date = nextDueDate(for: reminder)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        return formatter.string(from: date)
+    }
+    
+    private func markAsPaid(_ reminder: PaymentReminder) {
+        reminder.lastClearedDate = Date()
+        try? modelContext.save()
+        NotificationManager.shared.cancelNotifications(for: reminder)
+    }
+    
+    private func remindersForMonth(_ month: Date) -> [PaymentReminder] {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month], from: month)
+        return reminders.filter { r in
+            return r.dates.contains { date in
+                let dateComponents = calendar.dateComponents([.year, .month], from: date)
+                return dateComponents.year == components.year && dateComponents.month == components.month
+            }
+        }
+    }
+    
+    private func deleteReminder(_ reminder: PaymentReminder) {
+        withAnimation {
+            modelContext.delete(reminder)
+            try? modelContext.save()
+        }
+    }
+    
+    private func nextDueDateString(for reminder: PaymentReminder) -> String {
+        let date = nextDueDate(for: reminder)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        return formatter.string(from: date)
+    }
+    
+    // MARK: - Helper Properties
+    private var topSpendingCategory: String? {
+        let grouped = Dictionary(grouping: expenses, by: { $0.category })
+        let totals = grouped.mapValues { $0.reduce(0) { $0 + $1.amount } }
+        return totals.max(by: { $0.value < $1.value })?.key
+    }
+    private var highestSpendingDay: Date? {
+        let grouped = Dictionary(grouping: expenses, by: { Calendar.current.startOfDay(for: $0.date) })
+        let totals = grouped.mapValues { $0.reduce(0) { $0 + $1.amount } }
+        return totals.max(by: { $0.value < $1.value })?.key
+    }
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
     }
 }
 
@@ -261,6 +282,9 @@ struct BudgetSetupView: View {
     @State private var customCategoryName: String = ""
     @State private var showingDeleteAlert = false
     @State private var categoryToDelete: BudgetCategory?
+    @State private var budgetType: BudgetType = .daily
+    @State private var startDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var endDate: Date = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!.addingTimeInterval(-1)
     
     let categoryOptions = ["Food", "Transport", "Shopping", "Utilities", "Miscellaneous", "Other"]
     
@@ -281,13 +305,19 @@ struct BudgetSetupView: View {
                     TextField("Budget Amount", text: $newBudgetAmount)
                         .keyboardType(.decimalPad)
                     
+                    Picker("Budget Type", selection: $budgetType) {
+                        ForEach(BudgetType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+                    
                     Button("Add") {
                         let categoryName = selectedCategory == "Other" ? customCategoryName : selectedCategory
                         let trimmedName = categoryName.trimmingCharacters(in: .whitespacesAndNewlines)
                         let trimmedAmount = newBudgetAmount.trimmingCharacters(in: .whitespacesAndNewlines)
                         
                         if let amount = Double(trimmedAmount), amount > 0, !trimmedName.isEmpty {
-                            let newCat = BudgetCategory(name: trimmedName, budgetAmount: amount)
+                            let newCat = BudgetCategory(name: trimmedName, budgetAmount: amount, budgetType: budgetType, startDate: startDate, endDate: endDate)
                             modelContext.insert(newCat)
                             try? modelContext.save()
                             newBudgetAmount = ""
@@ -346,5 +376,147 @@ struct BudgetSetupView: View {
             modelContext.delete(category)
             try? modelContext.save()
         }
+    }
+}
+
+// --- Custom Calendar View for Reminders ---
+struct CustomCalendarView: View {
+    @Binding var month: Date
+    @Binding var selectedDay: Date
+    var reminders: [PaymentReminder]
+    var onDaySelected: (Date) -> Void
+    
+    private let calendar = Calendar.current
+    private let weekdaySymbols = ["S", "M", "T", "W", "T", "F", "S"]
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Button(action: { month = calendar.date(byAdding: .month, value: -1, to: month)! }) {
+                    Image(systemName: "chevron.left")
+                }
+                Spacer()
+                Text(month, format: .dateTime.year().month())
+                    .font(.headline)
+                Spacer()
+                Button(action: { month = calendar.date(byAdding: .month, value: 1, to: month)! }) {
+                    Image(systemName: "chevron.right")
+                }
+            }
+            .padding(.bottom, 4)
+            
+            HStack {
+                ForEach(weekdaySymbols, id: \.self) { day in
+                    Text(day)
+                        .frame(maxWidth: .infinity)
+                        .font(.caption)
+                }
+            }
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 10) {
+                ForEach(generateGrid(), id: \.self) { date in
+                    if let date = date {
+                        Button(action: { onDaySelected(date) }) {
+                            ZStack {
+                                if calendar.isDate(date, inSameDayAs: selectedDay) {
+                                    Circle().fill(Color.blue.opacity(0.2)).frame(width: 36, height: 36)
+                                }
+                                Text("\(calendar.component(.day, from: date))")
+                                    .foregroundColor(.primary)
+                                if hasReminder(on: date) {
+                                    Circle()
+                                        .fill(Color.yellow)
+                                        .frame(width: 8, height: 8)
+                                        .offset(y: 14)
+                                }
+                            }
+                            .frame(width: 36, height: 36)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    } else {
+                        Spacer().frame(maxWidth: .infinity)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+    
+    private func generateGrid() -> [Date?] {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: month) else {
+            return []
+        }
+        
+        let firstWeekday = calendar.component(.weekday, from: monthInterval.start)
+        let leadingSpaces = (firstWeekday - calendar.firstWeekday + 7) % 7
+        
+        var grid: [Date?] = Array(repeating: nil, count: leadingSpaces)
+        
+        let days = calendar.range(of: .day, in: .month, for: month)!.compactMap {
+            calendar.date(bySetting: .day, value: $0, of: month)
+        }
+        
+        grid.append(contentsOf: days)
+        
+        return grid
+    }
+    
+    private func hasReminder(on date: Date) -> Bool {
+        reminders.contains { reminder in
+            reminder.dates.contains { Calendar.current.isDate($0, inSameDayAs: date) }
+        }
+    }
+}
+
+// --- Edit Reminder View ---
+struct EditReminderView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) var dismiss
+    @Bindable var reminder: PaymentReminder
+    @State private var name: String = ""
+    @State private var paymentDate: Date = Date()
+    @State private var isRecurring: Bool = false
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Reminder Details") {
+                    TextField("Reminder Name", text: $name)
+                    DatePicker("Payment Day", selection: $paymentDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                    Toggle("Remind me every month", isOn: $isRecurring)
+                }
+            }
+            .navigationTitle("Edit Reminder")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        saveReminder()
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .onAppear {
+                name = reminder.name
+                let calendar = Calendar.current
+                let now = Date()
+                // Use the first date from the dates array, or current date if empty
+                paymentDate = reminder.dates.first ?? now
+                isRecurring = reminder.isRecurring
+            }
+        }
+    }
+    private func saveReminder() {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        reminder.name = trimmedName
+        reminder.dates = [paymentDate]
+        reminder.isRecurring = isRecurring
+        try? modelContext.save()
     }
 }

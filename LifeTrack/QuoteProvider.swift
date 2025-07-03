@@ -6,6 +6,7 @@ struct Quote {
 }
 
 class QuoteProvider {
+    private static var shownQuotes: Set<Int> = []
     private static let quotes: [Quote] = [
         Quote(text: "The secret of getting ahead is getting started.", author: "Mark Twain"),
         Quote(text: "The best way to predict the future is to create it.", author: "Peter Drucker"),
@@ -41,6 +42,7 @@ class QuoteProvider {
         Quote(text: "The mind is everything. What you think you become.", author: "Buddha"),
         Quote(text: "To keep the body in good health is a duty... otherwise we shall not be able to keep our mind strong and clear.", author: "Buddha"),
         Quote(text: "Thousands of candles can be lit from a single candle, and the life of the candle will not be shortened. Happiness never decreases by being shared.", author: "Buddha"),
+<<<<<<< HEAD
         Quote(text: "When you want to succeed as bad as you want to breathe, then you'll be successful.", author: "Eric Thomas"),
         Quote(text: "Hard work beats talent when talent doesn't work hard.", author: "Tim Notke"),
         Quote(text: "A man can be as great as he wants to be. If you believe in yourself and have the courage, the determination, the dedication, the competitive drive and if you are willing to sacrifice the little things in life and pay the price for the things that are worthwhile, it can be done.", author: "Vince Lombardi"),
@@ -454,9 +456,31 @@ Quote(text: "I write for the same reason I breathe - because if I didn't, I woul
 Quote(text: "Read a thousand books, and your words will flow like a river.", author: "Lisa See"),
 Quote(text: "You can't wait for inspiration. You have to go after it with a club.", author: "Jack London"),
 Quote(text: "There is no rule on how to write. Sometimes it comes easily and perfectly; sometimes it's like drilling rock and then blasting it out with charges.", author: "Ernest Hemingway")
+=======
+        // Add 100+ more unique quotes for demonstration
+        Quote(text: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky"),
+        Quote(text: "Act as if what you do makes a difference. It does.", author: "William James"),
+        Quote(text: "What you get by achieving your goals is not as important as what you become by achieving your goals.", author: "Zig Ziglar"),
+        Quote(text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt"),
+        Quote(text: "When you have a dream, you've got to grab it and never let go.", author: "Carol Burnett"),
+        Quote(text: "I can't change the direction of the wind, but I can adjust my sails to always reach my destination.", author: "Jimmy Dean"),
+        Quote(text: "No matter what you're going through, there's a light at the end of the tunnel.", author: "Demi Lovato"),
+        Quote(text: "It is our attitude at the beginning of a difficult task which, more than anything else, will affect its successful outcome.", author: "William James"),
+        Quote(text: "Life is like riding a bicycle. To keep your balance, you must keep moving.", author: "Albert Einstein"),
+        Quote(text: "Just one small positive thought in the morning can change your whole day.", author: "Dalai Lama"),
+        // ... (add hundreds more as needed)
+>>>>>>> 3de32d224c2ad5554c710cac60f8f4d1e6add16e
     ]
 
     static func getRandomQuote() -> Quote {
-        quotes.randomElement() ?? quotes.first!
+        if shownQuotes.count == quotes.count {
+            shownQuotes.removeAll()
+        }
+        var idx: Int
+        repeat {
+            idx = Int.random(in: 0..<quotes.count)
+        } while shownQuotes.contains(idx) && shownQuotes.count < quotes.count
+        shownQuotes.insert(idx)
+        return quotes[idx]
     }
 }

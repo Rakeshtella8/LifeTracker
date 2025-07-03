@@ -65,88 +65,56 @@ struct HabitsView: View {
 }
 
 struct HabitRowView: View {
+    let habit: Habit
     @Environment(\.modelContext) private var modelContext
-    var habit: Habit
     var onEdit: () -> Void
     var onDelete: () -> Void
     
-    private var isCompletedToday: Bool {
-        habit.completions?.contains(where: { $0.completionDate.isSameDay(as: Date()) }) ?? false
-    }
-
     var body: some View {
-        NavigationLink(destination: HabitDetailView(habit: habit)) {
-            HStack(spacing: 15) {
-                HabitPlantView(streak: calculateStreak(for: habit).current)
-                
-                VStack(alignment: .leading) {
-                    Text(habit.name)
-                        .font(.headline)
-                    Text("Current Streak: \(calculateStreak(for: habit).current) days")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                Button(action: toggleCompletion) {
-                    Image(systemName: isCompletedToday ? "checkmark.circle.fill" : "circle")
-                        .font(.title)
-                        .foregroundColor(isCompletedToday ? .green : .gray)
-                }
-                .buttonStyle(BorderlessButtonStyle())
-                
-                OptionsMenuView(onEdit: onEdit, onDelete: onDelete)
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(habit.name)
+                    .font(.headline)
+                Text(habit.frequency)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-            .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
+            
+            Spacer()
+            
+            Button(action: {
+                toggleHabitCompletion()
+            }) {
+                Image(systemName: isCompletedToday ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isCompletedToday ? .green : .gray)
+                    .font(.title2)
+            }
+            
+            OptionsMenuView(onEdit: onEdit, onDelete: onDelete)
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding(.vertical, 4)
     }
     
-    private func toggleCompletion() {
+    private var isCompletedToday: Bool {
+        guard let lastCompleted = habit.lastCompleted else { return false }
+        return Calendar.current.isDate(lastCompleted, inSameDayAs: Date())
+    }
+    
+    private func toggleHabitCompletion() {
         if isCompletedToday {
-            if let completion = habit.completions?.first(where: { $0.completionDate.isSameDay(as: Date()) }) {
-                modelContext.delete(completion)
-                try? modelContext.save()
-            }
+            // Remove today's completion
+            habit.lastCompleted = nil
         } else {
-            let newCompletion = HabitCompletion(completionDate: Date())
-            newCompletion.habit = habit
-            modelContext.insert(newCompletion)
-            try? modelContext.save()
+            // Add today's completion
+            habit.lastCompleted = Date()
+            
+            // Create a new completion record
+            let completion = HabitCompletion(completionDate: Date())
+            completion.habit = habit
+            modelContext.insert(completion)
         }
-    }
-    
-    private func calculateStreak(for habit: Habit) -> (current: Int, longest: Int) {
-        guard let completions = habit.completions, !completions.isEmpty else { return (0, 0) }
-        let sortedDates = completions.map { $0.completionDate.startOfDay }.sorted().removingDuplicates()
-        var currentStreak = 0
-        var longestStreak = 0
-        var streakStartDate = Date().startOfDay
-        if let lastCompletion = sortedDates.last, lastCompletion.isSameDay(as: Date().startOfDay) || lastCompletion.isSameDay(as: Calendar.current.date(byAdding: .day, value: -1, to: Date())!.startOfDay) {
-            for date in sortedDates.reversed() {
-                if date.isSameDay(as: streakStartDate) {
-                    currentStreak += 1
-                    streakStartDate = Calendar.current.date(byAdding: .day, value: -1, to: streakStartDate)!
-                } else {
-                    break
-                }
-            }
-        }
-        var currentLongest = 0
-        for i in 0..<sortedDates.count {
-            if i > 0 && sortedDates[i] == Calendar.current.date(byAdding: .day, value: 1, to: sortedDates[i-1]) {
-                currentLongest += 1
-            } else {
-                currentLongest = 1
-            }
-            if currentLongest > longestStreak {
-                longestStreak = currentLongest
-            }
-        }
-        return (currentStreak, longestStreak)
+        
+        try? modelContext.save()
     }
 }
 

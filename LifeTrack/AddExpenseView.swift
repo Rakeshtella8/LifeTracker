@@ -3,78 +3,81 @@ import SwiftData
 
 struct AddExpenseView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) var dismiss
-    @Query(sort: \BudgetCategory.name) private var budgetCategories: [BudgetCategory]
-
-    @State private var note: String = ""
-    @State private var amount: Double?
-    @State private var date: Date = Date()
-    @State private var category: String = "Food"
-    @State private var customCategory: String = ""
-    @State private var showingCustomCategoryField = false
+    @Environment(\.dismiss) private var dismiss
     
-    // Default categories plus custom ones from budget setup
-    private var allCategories: [String] {
-        let defaultCategories = ["Food", "Transport", "Shopping", "Utilities", "Miscellaneous"]
-        let customCategories = budgetCategories.map { $0.name }
-        return defaultCategories + customCategories + ["Other"]
-    }
-
+    @State private var name = ""
+    @State private var amount = ""
+    @State private var category = "Food"
+    @State private var customCategory = ""
+    @State private var date = Date()
+    @State private var notes = ""
+    @State private var showingCustomCategory = false
+    
+    let categories = ["Food", "Transport", "Shopping", "Entertainment", "Bills", "Healthcare", "Education", "Other"]
+    
     var body: some View {
         NavigationStack {
             Form {
-                Section("Details") {
-                    TextField("Note (e.g., Lunch)", text: $note)
-                    TextField("Amount", value: $amount, format: .currency(code: "INR"))
+                Section("Expense Details") {
+                    TextField("Expense Name", text: $name)
+                    
+                    TextField("Amount", text: $amount)
                         .keyboardType(.decimalPad)
-                }
-                
-                Section("Category") {
-                    Picker("Category", selection: $category) {
-                        ForEach(allCategories, id: \.self) { category in
-                            Text(category)
+                    
+                    if showingCustomCategory {
+                        TextField("Custom Category", text: $customCategory)
+                    } else {
+                        Picker("Category", selection: $category) {
+                            ForEach(categories, id: \.self) { category in
+                                Text(category).tag(category)
+                            }
                         }
                     }
-                    .onChange(of: category) {
-                        showingCustomCategoryField = category == "Other"
-                    }
                     
-                    if showingCustomCategoryField {
-                        TextField("Custom Category Name", text: $customCategory)
+                    Button(showingCustomCategory ? "Use Preset Categories" : "Add Custom Category") {
+                        showingCustomCategory.toggle()
                     }
                     
                     DatePicker("Date", selection: $date, displayedComponents: .date)
+                    
+                    TextField("Notes (Optional)", text: $notes, axis: .vertical)
+                        .lineLimit(3...6)
                 }
             }
             .navigationTitle("New Expense")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        addExpense()
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
                         dismiss()
                     }
-                    .disabled(note.isEmpty || amount == nil || (category == "Other" && customCategory.isEmpty))
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        addExpense()
+                    }
                 }
             }
         }
     }
-
+    
     private func addExpense() {
-        guard let finalAmount = amount, finalAmount > 0 else { return }
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        let finalCategory = category == "Other" ? customCategory : category
+        guard !trimmedName.isEmpty, let finalAmount = Double(amount), finalAmount > 0 else { return }
         
-        withAnimation {
-            let newExpense = Expense(amount: finalAmount, date: date, category: finalCategory, paymentMode: "Card", note: note)
-            modelContext.insert(newExpense)
-            try? modelContext.save()
-        }
+        let finalCategory = showingCustomCategory ? customCategory.trimmingCharacters(in: .whitespacesAndNewlines) : category
+        guard !finalCategory.isEmpty else { return }
+        
+        let newExpense = ExpenseModel(name: trimmedName, amount: finalAmount, category: finalCategory, date: date, notes: trimmedNotes.isEmpty ? nil : trimmedNotes)
+        modelContext.insert(newExpense)
+        try? modelContext.save()
+        dismiss()
     }
 }
 
 #Preview {
     AddExpenseView()
+        .modelContainer(for: [ExpenseModel.self], inMemory: true)
 } 

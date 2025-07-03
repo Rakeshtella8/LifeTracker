@@ -5,6 +5,8 @@ import SwiftData
 class HabitsViewModel: ObservableObject {
     @Published var habits: [Habit] = []
     @Published var completions: [HabitCompletion] = []
+    @Published var selectedHabit: Habit?
+    @Published var calendarMonth: Date = Date()
     
     private var modelContext: ModelContext
     
