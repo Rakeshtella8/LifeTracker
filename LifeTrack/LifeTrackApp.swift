@@ -12,7 +12,9 @@ import SwiftData
 struct LifeTrackApp: App {
     // This creates the shared database container that the entire app will use.
     // This is the standard and correct way to set up SwiftData.
-    let modelContainer: ModelContainer
+    let modelContainer: ModelContainer?
+    @State private var showingInitializationError = false
+    @State private var initializationError: Error?
 
     init() {
         do {
@@ -22,18 +24,55 @@ struct LifeTrackApp: App {
                 configurations: ModelConfiguration(isStoredInMemoryOnly: false)
             )
         } catch {
-            // If the database can't be created, the app will crash with an error.
-            // This is important for debugging.
-            fatalError("Could not initialize ModelContainer: \(error)")
+            // Store the error to show to the user instead of crashing
+            print("Could not initialize ModelContainer: \(error)")
+            initializationError = error
+            modelContainer = nil
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if let container = modelContainer {
+                ContentView()
+                    .modelContainer(container)
+            } else {
+                DatabaseErrorView(error: initializationError)
+            }
         }
-        // This is the most critical line. It makes the database available to all views
-        // so they can read and write data.
-        .modelContainer(modelContainer)
+    }
+}
+
+struct DatabaseErrorView: View {
+    let error: Error?
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 60))
+                .foregroundColor(.orange)
+            
+            Text("Database Error")
+                .font(.title)
+                .fontWeight(.bold)
+            
+            Text("Unable to initialize the app database. Please restart the app or contact support if the problem persists.")
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            if let error = error {
+                Text("Error: \(error.localizedDescription)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+            }
+            
+            Button("Retry") {
+                // Force restart the app
+                exit(0)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding()
     }
 }

@@ -38,15 +38,27 @@ struct DateFilterView: View {
         switch option {
         case .today:
             startDate = calendar.startOfDay(for: now)
-            endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!.addingTimeInterval(-1)
+            if let nextDay = calendar.date(byAdding: .day, value: 1, to: startDate) {
+                endDate = nextDay.addingTimeInterval(-1)
+            } else {
+                endDate = startDate.addingTimeInterval(86399)
+            }
         case .thisWeek:
-            let week = calendar.dateInterval(of: .weekOfYear, for: now)!
-            startDate = week.start
-            endDate = week.end.addingTimeInterval(-1)
+            if let week = calendar.dateInterval(of: .weekOfYear, for: now) {
+                startDate = week.start
+                endDate = week.end.addingTimeInterval(-1)
+            } else {
+                startDate = calendar.startOfDay(for: now)
+                endDate = startDate.addingTimeInterval(86399)
+            }
         case .thisMonth:
-            let month = calendar.dateInterval(of: .month, for: now)!
-            startDate = month.start
-            endDate = month.end.addingTimeInterval(-1)
+            if let month = calendar.dateInterval(of: .month, for: now) {
+                startDate = month.start
+                endDate = month.end.addingTimeInterval(-1)
+            } else {
+                startDate = calendar.startOfDay(for: now)
+                endDate = startDate.addingTimeInterval(86399)
+            }
         case .custom:
             break
         }

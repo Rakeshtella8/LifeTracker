@@ -12,7 +12,11 @@ struct ChartData: Identifiable {
 class BudgetViewModel: ObservableObject {
     @Published var selectedPeriod: BudgetPeriod = .day
     @Published var startDate: Date = Calendar.current.startOfDay(for: Date())
-    @Published var endDate: Date = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!.addingTimeInterval(-1)
+    @Published var endDate: Date = {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: Date())
+        return calendar.date(byAdding: .day, value: 1, to: startOfDay)?.addingTimeInterval(-1) ?? startOfDay
+    }()
     
     private var modelContext: ModelContext?
     
@@ -20,6 +24,7 @@ class BudgetViewModel: ObservableObject {
     @Published var categories: [BudgetCategory] = []
     @Published var expenses: [ExpenseModel] = []
     @Published var reminders: [PaymentReminder] = []
+    @Published var errorMessage: String?
     
     func setModelContext(_ context: ModelContext) {
         self.modelContext = context
@@ -27,7 +32,10 @@ class BudgetViewModel: ObservableObject {
     }
     
     private func loadData() {
-        guard let modelContext = modelContext else { return }
+        guard let modelContext = modelContext else { 
+            errorMessage = "Database context is not available"
+            return 
+        }
         
         do {
             let categoryDescriptor = FetchDescriptor<BudgetCategory>(sortBy: [SortDescriptor(\.name)])
@@ -37,7 +45,9 @@ class BudgetViewModel: ObservableObject {
             categories = try modelContext.fetch(categoryDescriptor)
             expenses = try modelContext.fetch(expenseDescriptor)
             reminders = try modelContext.fetch(reminderDescriptor)
+            errorMessage = nil
         } catch {
+            errorMessage = "Failed to load data: \(error.localizedDescription)"
             print("Error loading data: \(error)")
         }
     }
@@ -118,15 +128,29 @@ class BudgetViewModel: ObservableObject {
         switch selectedPeriod {
         case .day:
             startDate = calendar.startOfDay(for: now)
-            endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!.addingTimeInterval(-1)
+            if let nextDay = calendar.date(byAdding: .day, value: 1, to: startDate) {
+                endDate = nextDay.addingTimeInterval(-1)
+            } else {
+                endDate = startDate.addingTimeInterval(86399) // 24 hours - 1 second
+            }
         case .week:
-            let week = calendar.dateInterval(of: .weekOfYear, for: now)!
-            startDate = week.start
-            endDate = week.end.addingTimeInterval(-1)
+            if let week = calendar.dateInterval(of: .weekOfYear, for: now) {
+                startDate = week.start
+                endDate = week.end.addingTimeInterval(-1)
+            } else {
+                // Fallback to current day if week calculation fails
+                startDate = calendar.startOfDay(for: now)
+                endDate = startDate.addingTimeInterval(86399)
+            }
         case .month:
-            let month = calendar.dateInterval(of: .month, for: now)!
-            startDate = month.start
-            endDate = month.end.addingTimeInterval(-1)
+            if let month = calendar.dateInterval(of: .month, for: now) {
+                startDate = month.start
+                endDate = month.end.addingTimeInterval(-1)
+            } else {
+                // Fallback to current day if month calculation fails
+                startDate = calendar.startOfDay(for: now)
+                endDate = startDate.addingTimeInterval(86399)
+            }
         case .custom:
             // Custom dates are already set via bindings
             break
@@ -134,21 +158,35 @@ class BudgetViewModel: ObservableObject {
     }
     
     func deleteExpense(_ expense: ExpenseModel) {
-        guard let modelContext = modelContext else { return }
+        guard let modelContext = modelContext else { 
+            errorMessage = "Cannot delete expense: database context unavailable"
+            return 
+        }
         
-        withAnimation {
-            modelContext.delete(expense)
-            try? modelContext.save()
-            loadData()
+        do {
+            withAnimation {
+                modelContext.delete(expense)
+                try modelContext.save()
+                loadData()
+            }
+        } catch {
+            errorMessage = "Failed to delete expense: \(error.localizedDescription)"
         }
     }
     
     func markReminderAsPaid(_ reminder: PaymentReminder) {
-        guard let modelContext = modelContext else { return }
+        guard let modelContext = modelContext else { 
+            errorMessage = "Cannot mark reminder as paid: database context unavailable"
+            return 
+        }
         
-        reminder.lastClearedDate = Date()
-        try? modelContext.save()
-        loadData()
+        do {
+            reminder.lastClearedDate = Date()
+            try modelContext.save()
+            loadData()
+        } catch {
+            errorMessage = "Failed to mark reminder as paid: \(error.localizedDescription)"
+        }
     }
 }
 
@@ -165,7 +203,11 @@ struct BudgetSetupView: View {
     @State private var categoryToDelete: BudgetCategory?
     @State private var budgetType: BudgetType = .daily
     @State private var startDate: Date = Calendar.current.startOfDay(for: Date())
-    @State private var endDate: Date = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!.addingTimeInterval(-1)
+    @State private var endDate: Date = {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: Date())
+        return calendar.date(byAdding: .day, value: 1, to: startOfDay)?.addingTimeInterval(-1) ?? startOfDay
+    }()
     
     let categoryOptions = ["Food", "Transport", "Shopping", "Utilities", "Miscellaneous", "Other"]
     
@@ -200,10 +242,14 @@ struct BudgetSetupView: View {
                         if let amount = Double(trimmedAmount), amount > 0, !trimmedName.isEmpty {
                             let newCat = BudgetCategory(name: trimmedName, budgetAmount: amount, type: budgetType, startDate: startDate, endDate: endDate)
                             modelContext.insert(newCat)
-                            try? modelContext.save()
-                            newBudgetAmount = ""
-                            customCategoryName = ""
-                            selectedCategory = "Food"
+                            do {
+                                try modelContext.save()
+                                newBudgetAmount = ""
+                                customCategoryName = ""
+                                selectedCategory = "Food"
+                            } catch {
+                                print("Failed to save category: \(error)")
+                            }
                         }
                     }
                 }
@@ -253,9 +299,13 @@ struct BudgetSetupView: View {
     }
     
     private func deleteCategory(_ category: BudgetCategory) {
-        withAnimation {
-            modelContext.delete(category)
-            try? modelContext.save()
+        do {
+            withAnimation {
+                modelContext.delete(category)
+                try modelContext.save()
+            }
+        } catch {
+            print("Failed to delete category: \(error)")
         }
     }
 }
@@ -306,6 +356,10 @@ struct EditReminderView: View {
         reminder.name = trimmedName
         reminder.dates = [paymentDate]
         reminder.isRecurring = isRecurring
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save reminder: \(error)")
+        }
     }
 }

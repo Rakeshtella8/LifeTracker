@@ -13,7 +13,11 @@ struct TasksView: View {
 
     // Filters
     @State private var startDate: Date = Calendar.current.startOfDay(for: Date())
-    @State private var endDate: Date = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!
+    @State private var endDate: Date = {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: Date())
+        return calendar.date(byAdding: .day, value: 1, to: startOfDay)?.addingTimeInterval(-1) ?? startOfDay
+    }()
     @State private var statusFilter: StatusFilter = .all
 
     enum StatusFilter: String, CaseIterable, Identifiable {

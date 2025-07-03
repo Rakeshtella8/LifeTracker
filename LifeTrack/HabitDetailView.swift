@@ -58,7 +58,7 @@ struct CalendarView: View {
         let leadingSpaces = (firstWeekday - calendar.firstWeekday + 7) % 7
         
         var days: [Date?] = Array(repeating: nil, count: leadingSpaces)
-        let daysInMonth = calendar.range(of: .day, in: .month, for: month)!.count
+        let daysInMonth = calendar.range(of: .day, in: .month, for: month)?.count ?? 30
         
         for dayIndex in 1...daysInMonth {
             if let date = calendar.date(byAdding: .day, value: dayIndex - 1, to: firstDayOfMonth) {
@@ -81,14 +81,21 @@ struct CalendarView: View {
     var body: some View {
         VStack {
             HStack {
-                Button(action: { month = Calendar.current.date(byAdding: .month, value: -1, to: month)! }) {
+                Button(action: { 
+                    if let previousMonth = Calendar.current.date(byAdding: .month, value: -1, to: month) {
+                        month = previousMonth
+                    }
+                }) {
                     Image(systemName: "chevron.left")
                 }
+                
                 Spacer()
-                Text(month, format: .dateTime.month().year())
-                    .font(.headline)
-                Spacer()
-                Button(action: { month = Calendar.current.date(byAdding: .month, value: 1, to: month)! }) {
+                
+                Button(action: { 
+                    if let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: month) {
+                        month = nextMonth
+                    }
+                }) {
                     Image(systemName: "chevron.right")
                 }
             }
