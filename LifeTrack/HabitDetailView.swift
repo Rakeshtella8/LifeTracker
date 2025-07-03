@@ -18,11 +18,11 @@ struct HabitDetailView: View {
                 HStack(spacing: 24) {
                     VStack {
                         Text("Current Streak").font(.caption)
-                        Text("\(calculateStreak(for: habit).current) days").fontWeight(.bold)
+                        Text("\(habit.streak.current) days").fontWeight(.bold)
                     }
                     VStack {
                         Text("Longest Streak").font(.caption)
-                        Text("\(calculateStreak(for: habit).longest) days").fontWeight(.bold)
+                        Text("\(habit.streak.longest) days").fontWeight(.bold)
                     }
                     VStack {
                         Text("Total Completions").font(.caption)
@@ -34,64 +34,47 @@ struct HabitDetailView: View {
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
 
-                // A more robust calendar view
+                // The calendar view, now optimized
                 CalendarView(month: $month, habit: habit)
             }
             .padding()
         }
         .navigationTitle("Habit Details")
     }
-    
-    // This logic should be moved to a separate helper/viewmodel for cleaner code,
-    // but is included here for simplicity.
-    private func calculateStreak(for habit: Habit) -> (current: Int, longest: Int) {
-        guard let completions = habit.completions, !completions.isEmpty else { return (0, 0) }
-        
-        let sortedDates = completions.map { $0.completionDate.startOfDay }.sorted().removingDuplicates()
-        
-        var currentStreak = 0
-        var longestStreak = 0
-        var streakStartDate = Date().startOfDay
-        
-        if let lastCompletion = sortedDates.last, lastCompletion.isSameDay(as: Date().startOfDay) || lastCompletion.isSameDay(as: Calendar.current.date(byAdding: .day, value: -1, to: Date())!.startOfDay) {
-            // Check for current streak
-            for date in sortedDates.reversed() {
-                if date.isSameDay(as: streakStartDate) {
-                    currentStreak += 1
-                    streakStartDate = Calendar.current.date(byAdding: .day, value: -1, to: streakStartDate)!
-                } else {
-                    break
-                }
-            }
-        }
-        
-        // Check for longest streak
-        var currentLongest = 0
-        for i in 0..<sortedDates.count {
-            if i > 0 && sortedDates[i] == Calendar.current.date(byAdding: .day, value: 1, to: sortedDates[i-1]) {
-                currentLongest += 1
-            } else {
-                currentLongest = 1
-            }
-            if currentLongest > longestStreak {
-                longestStreak = currentLongest
-            }
-        }
-        
-        return (currentStreak, longestStreak)
-    }
 }
 
-// A more robust Calendar View
+// A more robust Calendar View, optimized with .drawingGroup()
 struct CalendarView: View {
     @Binding var month: Date
     let habit: Habit
     
-    private var weeks: [[Date]] {
+    // The UI is restored to your original version's logic
+    private var weeks: [[Date?]] {
         let calendar = Calendar.current
-        let range = calendar.range(of: .weekOfMonth, in: .month, for: month)!
-        return range.compactMap { week -> [Date]? in
-            return calendar.dateInterval(of: .weekOfMonth, for: calendar.date(byAdding: .weekOfMonth, value: week - 1, to: month)!)?.start.daysOfWeek()
+        guard let monthInterval = calendar.dateInterval(of: .month, for: month) else { return [] }
+        
+        let firstDayOfMonth = monthInterval.start
+        let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth)
+        let leadingSpaces = (firstWeekday - calendar.firstWeekday + 7) % 7
+        
+        var days: [Date?] = Array(repeating: nil, count: leadingSpaces)
+        let daysInMonth = calendar.range(of: .day, in: .month, for: month)!.count
+        
+        for dayIndex in 1...daysInMonth {
+            if let date = calendar.date(byAdding: .day, value: dayIndex - 1, to: firstDayOfMonth) {
+                days.append(date)
+            }
+        }
+        
+        let totalCells = (days.count + 6) / 7 * 7
+        let trailingSpaces = totalCells - days.count
+        if trailingSpaces > 0 {
+            days.append(contentsOf: [Date?](repeating: nil, count: trailingSpaces))
+        }
+        
+        // Chunk into weeks
+        return stride(from: 0, to: days.count, by: 7).map {
+            Array(days[$0..<min($0 + 7, days.count)])
         }
     }
     
@@ -117,36 +100,33 @@ struct CalendarView: View {
                 }
             }
             
-            ForEach(Array(weeks.enumerated()), id: \.offset) { weekIndex, week in
+            ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
                 HStack {
-                    ForEach(week, id: \.self) { day in
-                        Text("\(Calendar.current.component(.day, from: day))")
-                            .frame(maxWidth: .infinity)
-                            .padding(8)
-                            .background(
-                                Circle()
-                                    .fill(isCompleted(date: day) ? Color.green.opacity(0.3) : Color.clear)
-                            )
-                            .overlay(
-                                Circle()
-                                    .stroke(isCompleted(date: day) ? Color.green : Color.clear, lineWidth: 2)
-                            )
+                    ForEach(Array(week.enumerated()), id: \.offset) { _, day in
+                        if let day = day {
+                            Text("\(Calendar.current.component(.day, from: day))")
+                                .frame(maxWidth: .infinity)
+                                .padding(8)
+                                .background(
+                                    Circle()
+                                        .fill(isCompleted(date: day) ? Color.green.opacity(0.3) : Color.clear)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(isCompleted(date: day) ? Color.green : Color.clear, lineWidth: 2)
+                                )
+                        } else {
+                            Text("").frame(maxWidth: .infinity).padding(8)
+                        }
                     }
                 }
             }
         }
+        // This is the key performance optimization for complex static views.
+        .drawingGroup()
     }
     
     private func isCompleted(date: Date) -> Bool {
         habit.completions?.contains(where: { $0.completionDate.isSameDay(as: date) }) ?? false
     }
 }
-
-// Helper extensions
-extension Date {
-    func daysOfWeek() -> [Date] {
-        let calendar = Calendar.current
-        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: self)!.start
-        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
-    }
-} 

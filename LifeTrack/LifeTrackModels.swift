@@ -5,6 +5,7 @@ enum BudgetPeriod: String, CaseIterable, Identifiable, Codable {
     case day = "Day"
     case week = "Week"
     case month = "Month"
+    case custom = "Custom"
     var id: String { self.rawValue }
 }
 
@@ -73,9 +74,8 @@ final class Task {
     var priority: Int // For manual ordering
     var tags: [String]?
     var taskDescription: String?
-    var isCompleted: Bool
 
-    init(id: UUID = UUID(), title: String, dueDate: Date = Date(), status: Status = .notStarted, priority: Int = 0, tags: [String]? = nil, taskDescription: String? = nil, isCompleted: Bool = false) {
+    init(id: UUID = UUID(), title: String, dueDate: Date = Date(), status: Status = .notStarted, priority: Int = 0, tags: [String]? = nil, taskDescription: String? = nil) {
         self.id = id
         self.title = title
         self.dueDate = dueDate
@@ -83,13 +83,12 @@ final class Task {
         self.priority = priority
         self.tags = tags
         self.taskDescription = taskDescription
-        self.isCompleted = isCompleted
     }
 }
 
 @Model
-final class ExpenseModel: Identifiable {
-    var id: UUID
+final class ExpenseModel {
+    @Attribute(.unique) var id: UUID
     var name: String
     var amount: Double
     var category: String
@@ -116,8 +115,8 @@ final class BudgetCategory {
     var startDate: Date?
     var endDate: Date?
 
-    init(id: UUID = UUID(), name: String, budgetAmount: Double, type: BudgetType = .monthly, startDate: Date? = nil, endDate: Date? = nil) {
-        self.id = id
+    init(name: String, budgetAmount: Double, type: BudgetType = .monthly, startDate: Date? = nil, endDate: Date? = nil) {
+        self.id = UUID()
         self.name = name
         self.budgetAmount = budgetAmount
         self.type = type
@@ -135,8 +134,8 @@ final class PaymentReminder {
     var isRecurring: Bool
     var lastClearedDate: Date?
 
-    init(id: UUID = UUID(), name: String, dates: [Date], amount: Double? = nil, isRecurring: Bool = false, lastClearedDate: Date? = nil) {
-        self.id = id
+    init(name: String, dates: [Date], amount: Double? = nil, isRecurring: Bool = false, lastClearedDate: Date? = nil) {
+        self.id = UUID()
         self.name = name
         self.dates = dates
         self.amount = amount

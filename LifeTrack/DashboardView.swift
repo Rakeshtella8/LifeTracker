@@ -94,16 +94,17 @@ struct DashboardView: View {
                 Text("Today's Tasks")
                     .font(.headline)
                 Spacer()
-                Button("View All") {
-                    // Navigate to tasks view
-                }
-                .font(.subheadline)
+                // You can add navigation logic here later
+                // Example: NavigationLink("View All", destination: TasksViewContainer())
             }
             
             if todayTasks.isEmpty {
-                Text("No tasks for today")
+                Text("No tasks for today. Great job!")
                     .foregroundColor(.secondary)
-                    .padding(.vertical)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
             } else {
                 VStack(spacing: 8) {
                     ForEach(todayTasks.prefix(3)) { task in
@@ -120,16 +121,16 @@ struct DashboardView: View {
                 Text("Today's Habits")
                     .font(.headline)
                 Spacer()
-                Button("View All") {
-                    // Navigate to habits view
-                }
-                .font(.subheadline)
+                // NavigationLink("View All", destination: HabitsView())
             }
             
             if todayHabits.isEmpty {
-                Text("No habits for today")
+                Text("No daily habits tracked.")
                     .foregroundColor(.secondary)
-                    .padding(.vertical)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
             } else {
                 VStack(spacing: 8) {
                     ForEach(todayHabits.prefix(3)) { habit in
@@ -146,16 +147,16 @@ struct DashboardView: View {
                 Text("Recent Expenses")
                     .font(.headline)
                 Spacer()
-                Button("View All") {
-                    // Navigate to budget view
-                }
-                .font(.subheadline)
+                 // NavigationLink("View All", destination: BudgetView())
             }
             
             if recentExpenses.isEmpty {
-                Text("No recent expenses")
+                Text("No recent expenses recorded.")
                     .foregroundColor(.secondary)
-                    .padding(.vertical)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
             } else {
                 VStack(spacing: 8) {
                     ForEach(recentExpenses.prefix(3)) { expense in
@@ -172,9 +173,12 @@ struct DashboardView: View {
                 .font(.headline)
             
             if budgetCategories.isEmpty {
-                Text("No budget categories set up")
+                Text("No budgets set up. Go to the Budget tab to create one.")
                     .foregroundColor(.secondary)
-                    .padding(.vertical)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
             } else {
                 VStack(spacing: 8) {
                     ForEach(budgetCategories.prefix(3)) { category in
@@ -187,15 +191,11 @@ struct DashboardView: View {
     
     // MARK: - Computed Properties
     private var todayTasks: [Task] {
-        tasks.filter { task in
-            return Calendar.current.isDate(task.dueDate, inSameDayAs: selectedDate)
-        }
+        tasks.filter { Calendar.current.isDate($0.dueDate, inSameDayAs: selectedDate) }
     }
     
     private var todayHabits: [Habit] {
-        habits.filter { habit in
-            habit.isActive && habit.frequency == "daily"
-        }
+        habits.filter { $0.frequency == "daily" && $0.isActive }
     }
     
     private var recentExpenses: [ExpenseModel] {
@@ -207,7 +207,7 @@ struct DashboardView: View {
     }
     
     private var completedTasksToday: Int {
-        todayTasks.filter { $0.isCompleted }.count
+        todayTasks.filter { $0.status == .completed }.count
     }
     
     private var totalHabitsToday: Int {
@@ -216,10 +216,7 @@ struct DashboardView: View {
     
     private var completedHabitsToday: Int {
         todayHabits.filter { habit in
-            if let lastCompleted = habit.lastCompleted {
-                return Calendar.current.isDate(lastCompleted, inSameDayAs: selectedDate)
-            }
-            return false
+            habit.completions?.contains { Calendar.current.isDate($0.completionDate, inSameDayAs: selectedDate) } ?? false
         }.count
     }
     
@@ -234,25 +231,26 @@ struct DashboardView: View {
 }
 
 struct DashboardTaskRowView: View {
-    let task: Task
-    @Environment(\.modelContext) private var modelContext
+    @Bindable var task: Task
 
     var body: some View {
         HStack {
             Button(action: {
-                task.isCompleted.toggle()
-                try? modelContext.save()
+                task.status = (task.status == .completed) ? .notStarted : .completed
             }) {
-                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(task.isCompleted ? .green : .gray)
+                Image(systemName: task.status == .completed ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(task.status == .completed ? .green : .gray)
             }
             .buttonStyle(BorderlessButtonStyle())
 
             Text(task.title)
-                .strikethrough(task.isCompleted)
+                .strikethrough(task.status == .completed, color: .secondary)
 
             Spacer()
         }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(8)
     }
 }
 
@@ -272,37 +270,31 @@ struct DashboardHabitRowView: View {
             
             Spacer()
             
-            Button(action: {
-                toggleHabitCompletion()
-            }) {
-                Image(systemName: isCompletedToday ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(isCompletedToday ? .green : .gray)
+            Button(action: toggleCompletion) {
+                Image(systemName: isCompletedToday() ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isCompletedToday() ? .green : .gray)
                     .font(.title2)
             }
+            .buttonStyle(PlainButtonStyle())
         }
-        .padding(.vertical, 4)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(8)
     }
     
-    private var isCompletedToday: Bool {
-        guard let lastCompleted = habit.lastCompleted else { return false }
-        return Calendar.current.isDate(lastCompleted, inSameDayAs: Date())
+    private func isCompletedToday() -> Bool {
+        habit.completions?.contains { $0.completionDate.isSameDay(as: Date()) } ?? false
     }
     
-    private func toggleHabitCompletion() {
-        if isCompletedToday {
-            // Remove today's completion
-            habit.lastCompleted = nil
+    private func toggleCompletion() {
+        let today = Date().startOfDay
+        if let completion = habit.completions?.first(where: { $0.completionDate.isSameDay(as: today) }) {
+            modelContext.delete(completion)
         } else {
-            // Add today's completion
-            habit.lastCompleted = Date()
-            
-            // Create a new completion record
-            let completion = HabitCompletion(completionDate: Date())
-            completion.habit = habit
-            modelContext.insert(completion)
+            let newCompletion = HabitCompletion(completionDate: today)
+            newCompletion.habit = habit // Correctly associate the completion with the habit
+            modelContext.insert(newCompletion)
         }
-        
-        try? modelContext.save()
     }
 }
 
@@ -365,4 +357,4 @@ struct BudgetProgressView: View {
 #Preview {
     DashboardView()
         .modelContainer(for: [Task.self, Habit.self, ExpenseModel.self, BudgetCategory.self], inMemory: true)
-} 
+}

@@ -4,121 +4,115 @@ import SwiftData
 struct HabitsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Habit.createdAt, order: .reverse) private var habits: [Habit]
-    @State private var showingAddSheet = false
-    @State private var showingEditSheet = false
+    
+    @State private var showingAddHabit = false
+    @State private var habitToEdit: Habit?
     @State private var selectedHabit: Habit?
-    @State private var showingDeleteAlert = false
-    @State private var habitToDelete: Habit?
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 12) {
-                    if habits.isEmpty {
-                        ContentUnavailableView("No Habits Yet", systemImage: "repeat", description: Text("Tap the + button to add your first habit."))
-                            .padding(.top, 20)
-                    } else {
+            VStack(spacing: 0) {
+                if habits.isEmpty {
+                    ContentUnavailableView("No Habits Yet", systemImage: "figure.mind.and.body", description: Text("Tap the '+' button to add your first habit."))
+                } else {
+                    List {
                         ForEach(habits) { habit in
-                            HabitRowView(habit: habit) {
-                                selectedHabit = habit
-                                showingEditSheet = true
-                            } onDelete: {
-                                habitToDelete = habit
-                                showingDeleteAlert = true
-                            }
+                            HabitRowView(habit: habit)
+                                .contentShape(Rectangle()) // Make the whole row tappable
+                                .onTapGesture {
+                                    selectedHabit = habit
+                                }
+                                .swipeActions(edge: .leading) {
+                                    Button {
+                                        habitToEdit = habit
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
+                                    .tint(.blue)
+                                }
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        deleteHabit(habit)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                         }
                     }
+                    .listStyle(PlainListStyle())
                 }
-                .padding()
             }
             .navigationTitle("Habits")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingAddSheet = true }) { Image(systemName: "plus") }
-                }
-            }
-            .sheet(isPresented: $showingAddSheet) { AddHabitView() }
-            .sheet(isPresented: $showingEditSheet) {
-                if let habit = selectedHabit {
-                    EditHabitView(habit: habit)
-                }
-            }
-            .alert("Delete Habit", isPresented: $showingDeleteAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    if let habit = habitToDelete {
-                        deleteHabit(habit)
+                    Button(action: { showingAddHabit = true }) {
+                        Image(systemName: "plus")
                     }
                 }
-            } message: {
-                Text("Are you sure you want to delete this habit? This action cannot be undone.")
+            }
+            .sheet(isPresented: $showingAddHabit) {
+                AddHabitView()
+            }
+            .sheet(item: $habitToEdit) { habit in
+                EditHabitView(habit: habit)
+            }
+            .sheet(item: $selectedHabit) { habit in
+                HabitDetailView(habit: habit)
             }
         }
     }
-
+    
     private func deleteHabit(_ habit: Habit) {
         withAnimation {
             modelContext.delete(habit)
-            try? modelContext.save()
         }
     }
 }
 
 struct HabitRowView: View {
-    let habit: Habit
     @Environment(\.modelContext) private var modelContext
-    var onEdit: () -> Void
-    var onDelete: () -> Void
+    let habit: Habit
     
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 15) {
+            HabitPlantView(streak: habit.streak.current)
+
+            VStack(alignment: .leading) {
                 Text(habit.name)
                     .font(.headline)
                 Text(habit.frequency)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
             }
-            
             Spacer()
             
-            Button(action: {
-                toggleHabitCompletion()
-            }) {
-                Image(systemName: isCompletedToday ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(isCompletedToday ? .green : .gray)
-                    .font(.title2)
+            Button(action: toggleCompletion) {
+                Image(systemName: isCompletedToday() ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isCompletedToday() ? .green : .gray)
+                    .font(.title)
             }
-            
-            OptionsMenuView(onEdit: onEdit, onDelete: onDelete)
+            .buttonStyle(PlainButtonStyle())
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
     }
     
-    private var isCompletedToday: Bool {
-        guard let lastCompleted = habit.lastCompleted else { return false }
-        return Calendar.current.isDate(lastCompleted, inSameDayAs: Date())
+    private func isCompletedToday() -> Bool {
+        habit.completions?.contains(where: { $0.completionDate.isSameDay(as: Date()) }) ?? false
     }
     
-    private func toggleHabitCompletion() {
-        if isCompletedToday {
-            // Remove today's completion
-            habit.lastCompleted = nil
+    private func toggleCompletion() {
+        let today = Date().startOfDay
+        if let completion = habit.completions?.first(where: { $0.completionDate.isSameDay(as: today) }) {
+            modelContext.delete(completion)
         } else {
-            // Add today's completion
-            habit.lastCompleted = Date()
-            
-            // Create a new completion record
-            let completion = HabitCompletion(completionDate: Date())
-            completion.habit = habit
-            modelContext.insert(completion)
+            let newCompletion = HabitCompletion(completionDate: today)
+            newCompletion.habit = habit
+            modelContext.insert(newCompletion)
         }
-        
-        try? modelContext.save()
     }
 }
 
 #Preview {
     HabitsView()
-} 
-
+        .modelContainer(for: Habit.self, inMemory: true)
+}

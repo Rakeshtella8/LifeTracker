@@ -1,50 +1,70 @@
 import SwiftUI
 import SwiftData
 
-struct TasksViewContainer: View {
-    @Environment(\.modelContext) private var modelContext
-    var body: some View {
-        TasksView(viewModel: TasksViewModel(modelContext: modelContext))
-    }
-}
-
 struct TasksView: View {
-    @StateObject var viewModel: TasksViewModel
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Task.priority) private var tasks: [Task]
+    
     @State private var showingAddSheet = false
     @State private var showingEditSheet = false
     @State private var selectedTask: Task?
     @State private var showingDeleteAlert = false
     @State private var taskToDelete: Task?
 
+    // Filters
+    @State private var startDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var endDate: Date = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!
+    @State private var statusFilter: StatusFilter = .all
+
+    enum StatusFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case notStarted = "Not Started"
+        case inProgress = "In Progress"
+        case completed = "Completed"
+        var id: String { self.rawValue }
+    }
+    
+    var filteredTasks: [Task] {
+        tasks.filter { task in
+            let isInRange = task.dueDate >= startDate && task.dueDate < endDate
+            if statusFilter == .all {
+                return isInRange
+            } else {
+                // This assumes your Status enum and StatusFilter enum have matching rawValues
+                return isInRange && task.status.rawValue == statusFilter.rawValue
+            }
+        }
+    }
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
-                DateFilterView(startDate: $viewModel.startDate, endDate: $viewModel.endDate)
-                Picker("Status", selection: $viewModel.statusFilter) {
-                    ForEach(TasksViewModel.StatusFilter.allCases) { filter in
+                DateFilterView(startDate: $startDate, endDate: $endDate)
+                
+                Picker("Status", selection: $statusFilter) {
+                    ForEach(StatusFilter.allCases) { filter in
                         Text(filter.rawValue).tag(filter)
                     }
                 }
                 .pickerStyle(.segmented)
-                if viewModel.filteredTasks.isEmpty {
-                    ContentUnavailableView("No Tasks Yet", systemImage: "checkmark.circle", description: Text("Tap the + button to add your first task."))
+
+                if filteredTasks.isEmpty {
+                    ContentUnavailableView("No Tasks", systemImage: "checkmark.circle", description: Text("No tasks match the current filters."))
                         .padding(.top, 20)
                 } else {
                     List {
-                        ForEach(viewModel.filteredTasks) { task in
-                            TaskRowView(task: task) {
+                        ForEach(filteredTasks) { task in
+                            TaskRowView(task: task, onEdit: {
                                 selectedTask = task
                                 showingEditSheet = true
-                            } onDelete: {
+                            }, onDelete: {
                                 taskToDelete = task
                                 showingDeleteAlert = true
-                            } onStatusChange: { status in
-                                viewModel.updateStatus(for: task, to: status)
-                            }
+                            }, onStatusChange: { newStatus in
+                                updateStatus(for: task, to: newStatus)
+                            })
                         }
-                        .onMove { from, to in
-                            viewModel.reorderTasks(from: from, to: to)
-                        }
+                        .onMove(perform: reorderTasks)
                     }
                     .listStyle(.plain)
                 }
@@ -58,24 +78,40 @@ struct TasksView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingAddSheet) {
-                AddTaskView()
-            }
+            .sheet(isPresented: $showingAddSheet) { AddTaskView() }
             .sheet(isPresented: $showingEditSheet) {
                 if let task = selectedTask {
                     EditTaskView(task: task)
                 }
             }
             .alert("Delete Task", isPresented: $showingDeleteAlert) {
-                Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive) {
                     if let task = taskToDelete {
-                        viewModel.deleteTask(task)
+                        deleteTask(task)
                     }
                 }
             } message: {
-                Text("Are you sure you want to delete this task? This action cannot be undone.")
+                Text("Are you sure you want to delete this task?")
             }
         }
+    }
+
+    private func deleteTask(_ task: Task) {
+        modelContext.delete(task)
+        try? modelContext.save()
+    }
+    
+    private func updateStatus(for task: Task, to newStatus: Status) {
+        task.status = newStatus
+        try? modelContext.save()
+    }
+    
+    private func reorderTasks(from source: IndexSet, to destination: Int) {
+        var items = filteredTasks
+        items.move(fromOffsets: source, toOffset: destination)
+        for (index, task) in items.enumerated() {
+            task.priority = index
+        }
+        try? modelContext.save()
     }
 } 

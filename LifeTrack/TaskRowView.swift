@@ -1,6 +1,9 @@
 import SwiftUI
 
-struct TaskRowView: View {
+struct TaskRowView: View, Equatable {
+    static func == (lhs: TaskRowView, rhs: TaskRowView) -> Bool {
+        lhs.task.id == rhs.task.id && lhs.task.status == rhs.task.status && lhs.task.title == rhs.task.title && lhs.task.dueDate == rhs.task.dueDate
+    }
     var task: Task
     var onEdit: () -> Void
     var onDelete: () -> Void

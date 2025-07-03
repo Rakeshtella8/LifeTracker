@@ -22,7 +22,7 @@ struct ContentView: View {
                 .tabItem { Label("Habits", systemImage: "repeat") }
                 .tag(1)
 
-            TasksViewContainer()
+            TasksView()
                 .tabItem { Label("Tasks", systemImage: "checkmark.circle") }
                 .tag(2)
 
