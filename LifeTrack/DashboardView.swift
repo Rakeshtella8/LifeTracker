@@ -18,12 +18,44 @@ struct QuoteView: View {
 // --- Main Dashboard View (Upgraded and Corrected) ---
 struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Task.dueDate, order: .reverse) private var tasks: [Task]
-    @Query(sort: \Habit.createdAt, order: .reverse) private var habits: [Habit]
-    @Query(sort: \ExpenseModel.date, order: .reverse) private var expenses: [ExpenseModel]
+
+    // MARK: - SwiftData Queries with Predicates
+    @Query(sort: \Task.dueDate, order: .reverse) private var allTasks: [Task]
+    @Query(sort: \Habit.createdAt, order: .reverse) private var allHabits: [Habit]
+    @Query(sort: \ExpenseModel.date, order: .reverse) private var allExpenses: [ExpenseModel]
     @Query(sort: \BudgetCategory.name) private var budgetCategories: [BudgetCategory]
+
+    // Queries filtered for "today"
+    @Query(
+        sort: \Task.dueDate, order: .forward,
+        filter: #Predicate<Task> { task in
+            // Assuming dueDate is a Date
+            // This requires a bit of calendar logic
+            // Let's define today's range
+            let calendar = Calendar.current
+            let todayStart = calendar.startOfDay(for: Date())
+            let todayEnd = calendar.date(byAdding: .day, value: 1, to: todayStart)!
+
+            return task.dueDate >= todayStart && task.dueDate < todayEnd
+        }
+    ) private var todayTasks: [Task]
+
+    @Query(
+        filter: #Predicate<Habit> { habit in
+            habit.frequency == "daily" && habit.isActive
+        }
+    ) private var todayHabits: [Habit]
+
+    @Query(
+        sort: \ExpenseModel.date, order: .reverse,
+        filter: #Predicate<ExpenseModel> { expense in
+            let calendar = Calendar.current
+            let todayStart = calendar.startOfDay(for: Date())
+            let todayEnd = calendar.date(byAdding: .day, value: 1, to: todayStart)!
+            return expense.date >= todayStart && expense.date < todayEnd
+        }
+    ) private var todayExpenses: [ExpenseModel]
     
-    @State private var selectedDate = Date()
     @State private var showingAddTask = false
     @State private var showingAddHabit = false
     @State private var showingAddExpense = false
@@ -82,8 +114,8 @@ struct DashboardView: View {
             GridItem(.flexible()),
             GridItem(.flexible())
         ], spacing: 16) {
-            StatCard(title: "Tasks", value: "\(completedTasksToday)/\(totalTasksToday)", color: .blue)
-            StatCard(title: "Habits", value: "\(completedHabitsToday)/\(totalHabitsToday)", color: .green)
+            StatCard(title: "Tasks", value: "\(completedTasksToday)/\(todayTasks.count)", color: .blue)
+            StatCard(title: "Habits", value: "\(completedHabitsToday)/\(todayHabits.count)", color: .green)
             StatCard(title: "Spent", value: String(format: "₹%.0f", totalSpentToday), color: .red)
         }
     }
@@ -150,7 +182,7 @@ struct DashboardView: View {
                  // NavigationLink("View All", destination: BudgetView())
             }
             
-            if recentExpenses.isEmpty {
+            if allExpenses.isEmpty {
                 Text("No recent expenses recorded.")
                     .foregroundColor(.secondary)
                     .padding()
@@ -159,7 +191,7 @@ struct DashboardView: View {
                     .cornerRadius(8)
             } else {
                 VStack(spacing: 8) {
-                    ForEach(recentExpenses.prefix(3)) { expense in
+                    ForEach(allExpenses.prefix(3)) { expense in
                         ExpenseRowView(expense: expense)
                     }
                 }
@@ -190,43 +222,23 @@ struct DashboardView: View {
     }
     
     // MARK: - Computed Properties
-    private var todayTasks: [Task] {
-        tasks.filter { Calendar.current.isDate($0.dueDate, inSameDayAs: selectedDate) }
-    }
-    
-    private var todayHabits: [Habit] {
-        habits.filter { $0.frequency == "daily" && $0.isActive }
-    }
-    
-    private var recentExpenses: [ExpenseModel] {
-        expenses.prefix(5).map { $0 }
-    }
-    
-    private var totalTasksToday: Int {
-        todayTasks.count
-    }
     
     private var completedTasksToday: Int {
         todayTasks.filter { $0.status == .completed }.count
     }
     
-    private var totalHabitsToday: Int {
-        todayHabits.count
-    }
-    
     private var completedHabitsToday: Int {
         todayHabits.filter { habit in
-            habit.completions?.contains { Calendar.current.isDate($0.completionDate, inSameDayAs: selectedDate) } ?? false
+            habit.completions?.contains { Calendar.current.isDate($0.completionDate, inSameDayAs: Date()) } ?? false
         }.count
     }
     
     private var totalSpentToday: Double {
-        expenses.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
-            .reduce(0) { $0 + $1.amount }
+        todayExpenses.reduce(0) { $0 + $1.amount }
     }
     
     private func expensesForCategory(_ category: BudgetCategory) -> [ExpenseModel] {
-        expenses.filter { $0.category == category.name }
+        allExpenses.filter { $0.category == category.name }
     }
 }
 

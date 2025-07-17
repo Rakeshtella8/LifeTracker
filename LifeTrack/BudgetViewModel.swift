@@ -23,15 +23,16 @@ class BudgetViewModel: ObservableObject {
     
     func setModelContext(_ context: ModelContext) {
         self.modelContext = context
-        loadData()
+        loadData(from: startDate, to: endDate)
     }
     
-    private func loadData() {
+    private func loadData(from: Date, to: Date) {
         guard let modelContext = modelContext else { return }
         
         do {
             let categoryDescriptor = FetchDescriptor<BudgetCategory>(sortBy: [SortDescriptor(\.name)])
-            let expenseDescriptor = FetchDescriptor<ExpenseModel>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+            let expensePredicate = #Predicate<ExpenseModel> { $0.date >= from && $0.date <= to }
+            let expenseDescriptor = FetchDescriptor<ExpenseModel>(predicate: expensePredicate, sortBy: [SortDescriptor(\.date, order: .reverse)])
             let reminderDescriptor = FetchDescriptor<PaymentReminder>(sortBy: [SortDescriptor(\.name)])
             
             categories = try modelContext.fetch(categoryDescriptor)
@@ -45,8 +46,7 @@ class BudgetViewModel: ObservableObject {
     // MARK: - Computed Properties
     
     var totalSpentForPeriod: Double {
-        expenses.filter { $0.date >= startDate && $0.date <= endDate }
-            .reduce(0) { $0 + $1.amount }
+        expenses.reduce(0) { $0 + $1.amount }
     }
     
     var insights: [String] {
@@ -68,15 +68,13 @@ class BudgetViewModel: ObservableObject {
     }
     
     var pieData: [ChartData] {
-        let grouped = Dictionary(grouping: expenses.filter { $0.date >= startDate && $0.date <= endDate }, by: { $0.category })
+        let grouped = Dictionary(grouping: expenses, by: { $0.category })
         return grouped.map { (key, value) in ChartData(category: key, amount: value.reduce(0) { $0 + $1.amount }) }
             .filter { $0.amount > 0 }
     }
     
     var filteredExpenses: [ExpenseModel] {
-        expenses.filter { $0.date >= startDate && $0.date <= endDate }
-            .prefix(10)
-            .map { $0 }
+        Array(expenses.prefix(10))
     }
     
     var upcomingReminders: [PaymentReminder] {
@@ -100,7 +98,7 @@ class BudgetViewModel: ObservableObject {
     // MARK: - Helper Methods
     
     private func spent(for category: BudgetCategory) -> Double {
-        expenses.filter { $0.category == category.name && $0.date >= startDate && $0.date <= endDate }
+        expenses.filter { $0.category == category.name }
             .reduce(0) { $0 + $1.amount }
     }
     
@@ -131,6 +129,7 @@ class BudgetViewModel: ObservableObject {
             // Custom dates are already set via bindings
             break
         }
+        loadData(from: startDate, to: endDate)
     }
     
     func deleteExpense(_ expense: ExpenseModel) {
@@ -139,7 +138,7 @@ class BudgetViewModel: ObservableObject {
         withAnimation {
             modelContext.delete(expense)
             try? modelContext.save()
-            loadData()
+            loadData(from: startDate, to: endDate)
         }
     }
     
@@ -148,7 +147,7 @@ class BudgetViewModel: ObservableObject {
         
         reminder.lastClearedDate = Date()
         try? modelContext.save()
-        loadData()
+        loadData(from: startDate, to: endDate)
     }
 }
 

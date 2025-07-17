@@ -24,18 +24,6 @@ struct TasksView: View {
         var id: String { self.rawValue }
     }
     
-    var filteredTasks: [Task] {
-        tasks.filter { task in
-            let isInRange = task.dueDate >= startDate && task.dueDate < endDate
-            if statusFilter == .all {
-                return isInRange
-            } else {
-                // This assumes your Status enum and StatusFilter enum have matching rawValues
-                return isInRange && task.status.rawValue == statusFilter.rawValue
-            }
-        }
-    }
-    
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
@@ -48,26 +36,25 @@ struct TasksView: View {
                 }
                 .pickerStyle(.segmented)
 
-                if filteredTasks.isEmpty {
-                    ContentUnavailableView("No Tasks", systemImage: "checkmark.circle", description: Text("No tasks match the current filters."))
-                        .padding(.top, 20)
-                } else {
-                    List {
-                        ForEach(filteredTasks) { task in
-                            TaskRowView(task: task, onEdit: {
-                                selectedTask = task
-                                showingEditSheet = true
-                            }, onDelete: {
-                                taskToDelete = task
-                                showingDeleteAlert = true
-                            }, onStatusChange: { newStatus in
-                                updateStatus(for: task, to: newStatus)
-                            })
-                        }
-                        .onMove(perform: reorderTasks)
+                FilteredTasksView(
+                    startDate: startDate,
+                    endDate: endDate,
+                    statusFilter: statusFilter,
+                    onEdit: { task in
+                        selectedTask = task
+                        showingEditSheet = true
+                    },
+                    onDelete: { task in
+                        taskToDelete = task
+                        showingDeleteAlert = true
+                    },
+                    onStatusChange: { task, newStatus in
+                        updateStatus(for: task, to: newStatus)
+                    },
+                    onMove: { source, destination in
+                        reorderTasks(from: source, to: destination, for: tasks)
                     }
-                    .listStyle(.plain)
-                }
+                )
             }
             .padding([.horizontal, .top])
             .navigationTitle("Tasks")
@@ -106,12 +93,59 @@ struct TasksView: View {
         try? modelContext.save()
     }
     
-    private func reorderTasks(from source: IndexSet, to destination: Int) {
-        var items = filteredTasks
+    private func reorderTasks(from source: IndexSet, to destination: Int, for tasks: [Task]) {
+        var items = tasks
         items.move(fromOffsets: source, toOffset: destination)
         for (index, task) in items.enumerated() {
             task.priority = index
         }
         try? modelContext.save()
     }
-} 
+}
+
+struct FilteredTasksView: View {
+    @Query private var tasks: [Task]
+
+    let onEdit: (Task) -> Void
+    let onDelete: (Task) -> Void
+    let onStatusChange: (Task, Status) -> Void
+    let onMove: (IndexSet, Int) -> Void
+
+    init(startDate: Date, endDate: Date, statusFilter: TasksView.StatusFilter, onEdit: @escaping (Task) -> Void, onDelete: @escaping (Task) -> Void, onStatusChange: @escaping (Task, Status) -> Void, onMove: @escaping (IndexSet, Int) -> Void) {
+        let statusRawValue = statusFilter.rawValue
+        let predicate = #Predicate<Task> { task in
+            let isInRange = task.dueDate >= startDate && task.dueDate < endDate
+            if statusFilter == .all {
+                return isInRange
+            } else {
+                return isInRange && task.status.rawValue == statusRawValue
+            }
+        }
+        _tasks = Query(filter: predicate, sort: \.priority)
+        self.onEdit = onEdit
+        self.onDelete = onDelete
+        self.onStatusChange = onStatusChange
+        self.onMove = onMove
+    }
+
+    var body: some View {
+        if tasks.isEmpty {
+            ContentUnavailableView("No Tasks", systemImage: "checkmark.circle", description: Text("No tasks match the current filters."))
+                .padding(.top, 20)
+        } else {
+            List {
+                ForEach(tasks) { task in
+                    TaskRowView(task: task, onEdit: {
+                        onEdit(task)
+                    }, onDelete: {
+                        onDelete(task)
+                    }, onStatusChange: { newStatus in
+                        onStatusChange(task, newStatus)
+                    })
+                }
+                .onMove(perform: onMove)
+            }
+            .listStyle(.plain)
+        }
+    }
+}
