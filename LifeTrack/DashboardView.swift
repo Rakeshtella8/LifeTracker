@@ -26,19 +26,12 @@ struct DashboardView: View {
     @Query(sort: \BudgetCategory.name) private var budgetCategories: [BudgetCategory]
 
     // Queries filtered for "today"
-    @Query(
-        sort: \Task.dueDate, order: .forward,
-        filter: #Predicate<Task> { task in
-            // Assuming dueDate is a Date
-            // This requires a bit of calendar logic
-            // Let's define today's range
-            let calendar = Calendar.current
-            let todayStart = calendar.startOfDay(for: Date())
-            let todayEnd = calendar.date(byAdding: .day, value: 1, to: todayStart)!
+    @State private var todayStart: Date = .now
+    @State private var todayEnd: Date = .now
 
-            return task.dueDate >= todayStart && task.dueDate < todayEnd
-        }
-    ) private var todayTasks: [Task]
+    private var todayTasks: [Task] {
+        allTasks.filter { $0.dueDate >= todayStart && $0.dueDate < todayEnd }
+    }
 
     @Query(
         filter: #Predicate<Habit> { habit in
@@ -46,15 +39,9 @@ struct DashboardView: View {
         }
     ) private var todayHabits: [Habit]
 
-    @Query(
-        sort: \ExpenseModel.date, order: .reverse,
-        filter: #Predicate<ExpenseModel> { expense in
-            let calendar = Calendar.current
-            let todayStart = calendar.startOfDay(for: Date())
-            let todayEnd = calendar.date(byAdding: .day, value: 1, to: todayStart)!
-            return expense.date >= todayStart && expense.date < todayEnd
-        }
-    ) private var todayExpenses: [ExpenseModel]
+    private var todayExpenses: [ExpenseModel] {
+        allExpenses.filter { $0.date >= todayStart && $0.date < todayEnd }
+    }
     
     @State private var showingAddTask = false
     @State private var showingAddHabit = false
@@ -95,6 +82,13 @@ struct DashboardView: View {
                 AddExpenseView()
             }
         }
+        .onAppear(perform: updateToday)
+    }
+
+    private func updateToday() {
+        let calendar = Calendar.current
+        todayStart = calendar.startOfDay(for: .now)
+        todayEnd = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? .now
     }
     
     private var welcomeSection: some View {
